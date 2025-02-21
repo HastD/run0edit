@@ -1,0 +1,97 @@
+#!/bin/sh
+# ------------------------------------------------------------------------------
+# run0edit - edit a single file as root.
+# version 0.1.0
+#
+# Copyright (C) 2025 Daniel Hast
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+
+if [ "$#" -ne 1 ]; then
+    echo 'run0edit allows a permitted user to edit a file as root.'
+    echo 'Usage: run0edit "path/to/file"'
+    exit 1
+fi
+if [ $(id -u) = 0 ]; then
+    echo 'run0edit should not be run as root.' >&2
+    exit 1
+fi
+filename="$1"
+# Ensure the file either exists and is a regular file, or does not exist but is
+# in a directory that exists.
+if [ -f "$filename" ]; then
+    file_exists=1
+elif [ ! -e "$filename" ]; then
+    directory=$(dirname "$filename")
+    if [ -d "$directory" ]; then
+        file_exists=0
+    else
+        echo 'Invalid argument: directory does not exist!' >&2
+        exit 1
+    fi
+else
+    echo 'Invalid argument: not a regular file!' >&2
+    exit 1
+fi
+editor=$(which "$EDITOR" 2>/dev/null || which nano 2>/dev/null || which vi 2>/dev/null)
+# Can't find a text editor, so ask the user.
+while [ ! -x "$editor" ]; do
+    read -p 'Enter path to text editor: ' editor
+    editor=$(which "$editor" 2>/dev/null)
+done
+# Generate a temporary filename by appending a random suffix to the filename.
+trunc_filename=$(basename "$filename" | head -c 64)
+random_string="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 6)"
+temp_filename="/tmp/$trunc_filename$random_string"
+while [ -e "$temp_filename" ]; do
+    random_string="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 6)"
+    temp_filename="/tmp/$trunc_filename$random_string"
+done
+if [ "$file_exists" = 1 ]; then
+    script='\
+        if ! ( cp "$1" "$2" && chmod 600 "$2" && chown "$SUDO_UID" "$2" ); then
+            echo "run0edit: failed to copy $1 to temporary file at $2";
+            exit 1;
+        fi
+        if ! run0 --user="$SUDO_UID" "$3" "$2"; then
+            echo "run0edit: failed to edit temporary file at $2";
+            exit 1;
+        fi
+        if cmp -s "$2" "$1"; then
+            echo "run0edit: $1 unchanged";
+        else
+            if ! cat "$2" > "$1"; then
+                echo "run0edit: unable to write temporary file at $2 to $1";
+                exit 1;
+            fi
+        fi
+        rm -f "$2"'
+else
+    script='\
+        if ! run0 --user="$SUDO_UID" "$3" "$2"; then
+            echo "run0edit: failed to edit temporary file at $2";
+            exit 1;
+        fi
+        if [ -s "$2" ]; then
+            if ! cp "$2" "$1"; then
+                echo "run0edit: unable to write temporary file at $2 to $1";
+                exit 1;
+            fi
+        else
+            echo "run0edit: $1 not created";
+        fi
+        rm -f "$2"'
+fi
+run0 /bin/sh -c "$script" 'run0edit' "$filename" "$temp_filename" "$editor"
+
