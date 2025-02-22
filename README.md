@@ -9,7 +9,7 @@ opened in an unprivileged editor; if modified, the edited file contents are
 copied back to the original location when the editor is closed.
 
 If the editor exits with an abnormal status code or copying the data back to the
-original location fails, then a temporary file will be left in the `/tmp`
+original location fails, then the temporary file will be left in the `/tmp`
 directory. The name of the temporary file is derived from the name of the
 original file, with a randomly generated suffix to avoid conflicts with existing
 files.

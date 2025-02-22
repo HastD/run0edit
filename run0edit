@@ -50,17 +50,12 @@ while [ ! -x "$editor" ]; do
     read -p 'Enter path to text editor: ' editor
     editor=$(which "$editor" 2>/dev/null)
 done
-# Generate a temporary filename by appending a random suffix to the filename.
+# Create a temporary file with a random suffix appended to the filename.
 trunc_filename=$(basename "$filename" | head -c 64)
-random_string="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 6)"
-temp_filename="/tmp/$trunc_filename$random_string"
-while [ -e "$temp_filename" ]; do
-    random_string="$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 6)"
-    temp_filename="/tmp/$trunc_filename$random_string"
-done
+temp_filename=$(mktemp --tmpdir "${trunc_filename}.XXXXXXXXXX")
 if [ "$file_exists" = 1 ]; then
     script='\
-        if ! ( cp "$1" "$2" && chmod 600 "$2" && chown "$SUDO_UID" "$2" ); then
+        if ! cp "$1" "$2"; then
             echo "run0edit: failed to copy $1 to temporary file at $2";
             exit 1;
         fi
@@ -71,7 +66,7 @@ if [ "$file_exists" = 1 ]; then
         if cmp -s "$2" "$1"; then
             echo "run0edit: $1 unchanged";
         else
-            if ! cat "$2" > "$1"; then
+            if ! cp "$2" "$1"; then
                 echo "run0edit: unable to write temporary file at $2 to $1";
                 exit 1;
             fi
