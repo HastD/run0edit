@@ -25,7 +25,7 @@ fi
 if [ "$#" = 0 -o "$1" = '--help' ]; then
     echo 'run0edit allows a permitted user to edit a file as root.'
     echo 'Usage: run0edit "path/to/file"'
-    echo '       or, to use a different text editor:'
+    echo '       or, to use a different text editor (for example vim):'
     echo '       EDITOR=vim run0edit "path/to/file"'
     exit
 elif [ "$#" -ne 1 ]; then
