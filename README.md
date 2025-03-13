@@ -14,16 +14,17 @@ directory. The name of the temporary file is derived from the name of the
 original file, with a randomly generated suffix to avoid conflicts with existing
 files.
 
-The editor used may be customized by modifying the `EDITOR` environment
-variable. If this does not point to an executable file, `run0edit` will default
-to `nano` or `vi`, or, in the unlikely event that neither of these are
-available, to prompting the user for a path to a text editor.
+The editor used may be customized by writing the path to your text editor of
+choice (for example, `/usr/bin/vim`) to either of the files
+`/etc/run0edit/editor.conf` or `/usr/share/run0edit/editor.conf`. If this does
+not point to an executable file, `run0edit` will default to `nano` or `vi`, or,
+in the event that neither of these are available, to prompting the user for a
+path to a text editor.
 
 Usage:
 
 ```sh
 run0edit "path/to/file"
-EDITOR=/usr/bin/vim run0edit "path/to/file"
 ```
 
 Currently `run0edit` does not support any other options.
