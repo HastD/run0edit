@@ -26,7 +26,7 @@ if [ "$(id -u)" = 0 ]; then
     echo 'run0edit should not be run as root.' >&2
     exit 1
 fi
-if [ "$#" = 0 -o "$1" = '--help' ]; then
+if [ "$#" = 0 ] || [ "$1" = '--help' ]; then
     echo 'run0edit allows a permitted user to edit a file as root.'
     echo 'Usage: run0edit "path/to/file"'
     echo 'To use another text editor, write the path to your text editor of choice to'
