@@ -1,7 +1,7 @@
 #!/bin/sh
 # ------------------------------------------------------------------------------
 # run0edit - edit a single file as root.
-# version 0.3.0
+# version 0.3.1
 #
 # Please report issues at: https://github.com/HastD/run0edit/issues
 #
@@ -26,20 +26,22 @@ set -euo pipefail
 # standard utilities.
 PATH=$(command -p env -i sh -c 'echo "$PATH"')
 
-if [ "$(id -u)" = 0 ]; then
-    echo 'run0edit should not be run as root.' >&2
-    exit 1
-fi
 if [ "$#" = 0 ] || [ "$1" = '--help' ]; then
     echo 'run0edit allows a permitted user to edit a file as root.'
     echo 'Usage: run0edit "path/to/file"'
     echo 'To use another text editor, write the path to your text editor of choice to'
     echo '    /etc/run0edit/editor.conf'
     exit
+elif [ "$(id -u)" = 0 ]; then
+    echo 'run0edit should not be run as root.' >&2
+    exit 1
 elif [ "$#" -ne 1 ]; then
     echo 'Error: too many arguments.' >&2
     echo 'run0edit allows a permitted user to edit a file as root.'
     echo 'Usage: run0edit "path/to/file"'
+    exit 1
+elif [ -w "$1" ]; then
+    echo 'File is writable by the current user; run0edit is unnecessary.' >&2
     exit 1
 fi
 
