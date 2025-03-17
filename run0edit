@@ -126,7 +126,12 @@ script='\
     fi'
 
 # Escape backslashes and double-quotes in paths to be passed to ReadWritePaths.
-escaped_dir=$(realpath -m "$directory" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+if [ -e "$filename" ]; then
+    writable_path="$filename"
+else
+    writable_path="$directory"
+fi
+escaped_path=$(realpath -m "$writable_path" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 escaped_temp_path=$(echo "$temp_filename" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
 set +e
@@ -150,7 +155,7 @@ run0 \
     --property="ProtectKernelTunables=yes" \
     --property="ProtectProc=noaccess" \
     --property="ProtectSystem=strict" \
-    --property="ReadWritePaths=\"$escaped_dir\" \"$escaped_temp_path\"" \
+    --property="ReadWritePaths=\"$escaped_path\" \"$escaped_temp_path\"" \
     --property="RestrictAddressFamilies=AF_UNIX" \
     --property="RestrictNamespaces=yes" \
     --property="RestrictRealtime=yes" \
