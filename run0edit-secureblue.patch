@@ -2,15 +2,15 @@
 +++ secureblue/files/system/usr/bin/run0edit
 @@ -54,10 +54,10 @@
  fi
- if [ -f "$editor" -a -x "$editor" ]; then
+ if [ -f "$editor" ] && [ -x "$editor" ]; then
      :
 -elif command -pv nano > /dev/null; then
 -    editor="$(command -pv nano)"
 -elif command -pv vi > /dev/null; then
 -    editor="$(command -pv vi)"
-+elif [ -f '/usr/bin/nano' -a -x '/usr/bin/nano' ]; then
++elif [ -f '/usr/bin/nano' ] && [ -x '/usr/bin/nano' ]; then
 +    editor='/usr/bin/nano'
-+elif [ -f '/usr/bin/vi' -a -x '/usr/bin/vi' ]; then
++elif [ -f '/usr/bin/vi' ] && [ -x '/usr/bin/vi' ]; then
 +    editor='/usr/bin/vi'
  else
      echo "Editor not found. Please install either nano or vi, or write the path to" >&2
