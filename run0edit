@@ -20,10 +20,10 @@
 # limitations under the License.
 # ------------------------------------------------------------------------------
 
-set -eu
 # Set pipefail if it's supported by the shell, disregard if unsupported.
 # shellcheck disable=SC3040
 ( set -o pipefail 2> /dev/null ) && set -o pipefail
+set -eu
 
 # Reset $PATH to a default value to ensure command invocations point to
 # standard utilities.
