@@ -1,6 +1,15 @@
 --- run0edit/run0edit
 +++ secureblue/files/system/usr/bin/run0edit
-@@ -54,10 +54,10 @@
+@@ -19,7 +19,7 @@
+ # limitations under the License.
+ # ------------------------------------------------------------------------------
+ 
+-readonly version=0.4.0
++readonly version=0.4.0-secureblue
+ 
+ # Set pipefail if it's supported by the shell, disregard if unsupported.
+ # shellcheck disable=SC3040
+@@ -103,10 +103,10 @@
  fi
  if [ -f "$editor" ] && [ -x "$editor" ]; then
      :
