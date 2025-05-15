@@ -36,7 +36,7 @@ print_usage() {
 run0edit allows a permitted user to edit a file as root.
 
 Usage: run0edit [--] FILE
-Usage: run0edit --help | --version
+Usage: run0edit --help | -h | --version | -v
 
 To use another text editor, write the path to your text editor of choice to
     /etc/run0edit/editor.conf
@@ -78,6 +78,7 @@ done
 while [ "$#" -gt 0 ]; do
     if [ -n "$filename" ]; then
         echo 'run0edit: too many positional arguments.' >&2
+        echo 'Run with --help for usage info.' >&2
         exit 1
     fi
     filename="$1"
@@ -85,7 +86,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ -z "$filename" ]; then
-    echo 'ru0edit: missing argument' >&2
+    echo 'run0edit: missing argument' >&2
     exit 1
 elif [ -w "$filename" ]; then
     echo 'File is writable by the current user; run0edit is unnecessary.' >&2

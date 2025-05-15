@@ -19,10 +19,20 @@ example, `/usr/bin/vim`) to one of the files `/etc/run0edit/editor.conf` or
 `/usr/etc/run0edit/editor.conf`. If this does not point to an executable file,
 `run0edit` will default to using `nano` or `vi`.
 
+`run0edit` can also be used to edit files that have the immutable flag set. In
+this case, the user will be informed of the presence of the immutable flag and
+asked whether they wish to continue editing; if so, the immutable flag will be
+removed before the edited file contents are copied back to the original location
+and then reapplied afterward. This introduces a brief window during which
+another user could also edit the file (if they were permitted to do so if it
+were not for the immutable flag), so to protect against this, the file is
+compared with the edited temporary file after the immutable flag is reapplied,
+and `run0edit` gives an error message if the file contents do not match.
+
 Usage:
 
 ```sh
-run0edit "path/to/file"
+run0edit [--] "path/to/file"
+run0edit --help | -h
+run0edit --version | -v
 ```
-
-Currently `run0edit` does not support any other options.
