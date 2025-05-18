@@ -1,3 +1,5 @@
+# run0edit
+
 `run0edit` is to
 [`run0`](https://www.freedesktop.org/software/systemd/man/257/run0.html) what
 `sudoedit` is to `sudo` (in its most basic usage).
@@ -29,7 +31,16 @@ were not for the immutable flag), so to protect against this, the file is
 compared with the edited temporary file after the immutable flag is reapplied,
 and `run0edit` gives an error message if the file contents do not match.
 
-Usage:
+## Installation
+
+```sh
+git clone https://github.com/HastD/run0edit
+cd run0edit
+python3 ./build.py
+run0 install ./run0edit /usr/local/bin/
+```
+
+## Usage
 
 ```sh
 run0edit [--] "path/to/file"
