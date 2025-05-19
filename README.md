@@ -21,6 +21,11 @@ example, `/usr/bin/vim`) to one of the files `/etc/run0edit/editor.conf` or
 `/usr/etc/run0edit/editor.conf`. If this does not point to an executable file,
 `run0edit` will default to using `nano` or `vi`.
 
+> Note: Editors that make use of JIT compilation (such as Neovim built with
+> LuaJIT) might not work: as a security measure, `run0edit` makes use of systemd
+> sandboxing settings, including `MemoryDenyWriteExecute`, which prevents code
+> generated dynamically at runtime from being executed.
+
 `run0edit` can also be used to edit files that have the immutable flag set. In
 this case, the user will be informed of the presence of the immutable flag and
 asked whether they wish to continue editing; if so, the immutable flag will be
@@ -42,7 +47,7 @@ run0 install ./run0edit /usr/local/bin/
 
 ## Usage
 
-```sh
+```
 run0edit [--] "path/to/file"
 run0edit --help | -h
 run0edit --version | -v
