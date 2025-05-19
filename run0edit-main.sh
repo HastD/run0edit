@@ -115,11 +115,7 @@ else
 fi
 
 readonly_filesystem() {
-    if [ -r "$1" ] && command -pv findmnt >/dev/null; then
-        command -p findmnt -nru -o OPTIONS --target "$1" | tr ',' '\n' | grep -q '^ro$'
-    else
-        false
-    fi
+    findmnt -nru -o OPTIONS --target "$1" 2>/dev/null | tr ',' '\n' | grep -q '^ro$'
 }
 
 # Create a temporary file with a random suffix appended to the filename.

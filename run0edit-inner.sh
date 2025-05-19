@@ -9,11 +9,7 @@ readonly tmpfile="$2"
 readonly editor="$3"
 
 readonly_filesystem() {
-    if command -v findmnt >/dev/null; then
-        findmnt -nru -o OPTIONS --target "$1" | tr ',' '\n' | grep -q '^ro$'
-    else
-        false
-    fi
+    findmnt -nru -o OPTIONS --target "$1" 2>/dev/null | tr ',' '\n' | grep -q '^ro$'
 }
 
 is_immutable() {
@@ -59,19 +55,15 @@ copy_to_dest() {
     readonly edit_immutable="$2"
     if [ "$edit_immutable" = 'yes' ]; then
         chattr -i -- "$chattr_target_path"
-        touch -- "$filename"
-        set +e
-        cp -- "$tmpfile" "$filename"
-        cp_exit_status="$?"
-        set -e
+    fi
+    touch -- "$filename"
+    set +e
+    cp -- "$tmpfile" "$filename"
+    cp_exit_status="$?"
+    set -e
+    if [ "$edit_immutable" = 'yes' ]; then
         chattr +i -- "$chattr_target_path"
         echo 'Immutable flag reapplied.'
-    else
-        touch -- "$filename"
-        set +e
-        cp -- "$tmpfile" "$filename"
-        cp_exit_status="$?"
-        set -e
     fi
     if [ "$cp_exit_status" != 0 ]; then
         echo "run0edit: unable to write temporary file at $tmpfile to $filename"
