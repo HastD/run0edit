@@ -19,7 +19,7 @@
 # limitations under the License.
 # ------------------------------------------------------------------------------
 
-readonly version=0.4.3
+readonly version=0.4.4
 
 # Set pipefail if it's supported by the shell, disregard if unsupported.
 # shellcheck disable=SC3040

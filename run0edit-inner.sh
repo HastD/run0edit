@@ -13,8 +13,10 @@ readonly_filesystem() {
 }
 
 is_immutable() {
-    immutable_flag=$(lsattr -d -- "$1" 2>/dev/null | cut -d ' ' -f1 | tr -d '-' || echo '')
-    [ "$immutable_flag" = 'i' ]
+    case "$(lsattr -d -- "$1" 2>/dev/null | cut -d ' ' -f1 || echo '')" in
+        *i*) true ;;
+        *) false ;;
+    esac
 }
 
 ask_immutable() {
