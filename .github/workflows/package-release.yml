@@ -117,3 +117,4 @@ jobs:
             deb/*.deb
             rpm/*.noarch.rpm
             srpm/*.src.rpm
+          token: ${{ secrets.RUN0EDIT_ACCESS_TOKEN }}
