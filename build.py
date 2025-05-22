@@ -16,7 +16,7 @@ PLACEHOLDER = "{{ SCRIPT }}"
 
 assert "END_OF_INNER_SCRIPT" not in inner_script
 assert PLACEHOLDER in main_script
-main_script = main_script.replace(PLACEHOLDER, inner_script, count=1)
+main_script = main_script.replace(PLACEHOLDER, inner_script, 1)
 assert PLACEHOLDER not in main_script
 
 with open("./run0edit", "w", encoding="utf-8") as f:
