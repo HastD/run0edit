@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y nodejs python3 rpmdevtools
+          dnf install -y nodejs python3 rpmdevtools rpmlint
           rpmdev-setuptree
 
       - name: Checkout repository
@@ -55,6 +55,9 @@ jobs:
         with:
           name: source-archive
           path: ~/rpmbuild/SOURCES
+
+      - name: Run rpmlint on RPM spec
+        run: rpmlint rpm/run0edit.spec
 
       - name: Run rpmbuild on RPM spec
         run: rpmbuild -ba -v rpm/run0edit.spec
