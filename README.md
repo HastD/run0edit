@@ -38,12 +38,22 @@ and `run0edit` gives an error message if the file contents do not match.
 
 ## Installation
 
+For installation via system package manager, .deb and .rpm packages can be
+downloaded from the
+[latest release](https://github.com/HastD/run0edit/releases/latest). For
+automatic updates on Fedora-based distros, the package is also available in a
+[Copr repository](https://copr.fedorainfracloud.org/coprs/amaranth/run0edit/).
+
+Manual installation:
+
 ```sh
 git clone https://github.com/HastD/run0edit
 cd run0edit
 python3 ./build.py
 run0 install ./run0edit /usr/local/bin/
 ```
+
+Note: `run0edit` requires systemd version 248 or newer.
 
 ## Usage
 
