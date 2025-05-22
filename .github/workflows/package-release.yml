@@ -1,0 +1,119 @@
+name: Build Linux packages
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  NAME_AND_VERSION: run0edit-${{ github.ref_name }}
+
+jobs:
+  build_source_archive:
+    name: Build script and source archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create source archive
+        run: |
+          mkdir -p "$NAME_AND_VERSION"
+          find . -maxdepth 1 -type f '!' -name '.*' -execdir cp '{}' "$NAME_AND_VERSION"/ ';'
+          tar -cvf "$NAME_AND_VERSION".tar.gz "$NAME_AND_VERSION"
+
+      - name: Upload source as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-archive
+          path: ${{ env.NAME_AND_VERSION }}.tar.gz
+
+      - name: Build script
+        run: python3 ./build.py
+
+      - name: Upload script as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: run0edit
+          path: run0edit
+
+  build_rpm:
+    name: Build RPM package
+    needs: build_source_archive
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y nodejs python3 rpmdevtools
+          rpmdev-setuptree
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Retrieve source archive
+        uses: actions/download-artifact@v4
+        with:
+          name: source-archive
+          path: ~/rpmbuild/SOURCES
+
+      - name: Edit RPM spec to match source archive name
+        run: sed -Ei '/^Version:/s/[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+.*/${{ github.ref_name }}/' rpm/run0edit.spec
+
+      - name: Run rpmbuild on RPM spec
+        run: rpmbuild -ba -v rpm/run0edit.spec
+
+      - name: Upload SRPM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: srpm
+          path: ~/rpmbuild/SRPMS/${{ env.NAME_AND_VERSION }}-1.src.rpm
+          if-no-files-found: error
+
+      - name: Upload RPM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: ~/rpmbuild/RPMS/noarch/${{ env.NAME_AND_VERSION }}-1.noarch.rpm
+          if-no-files-found: error
+
+  build_deb:
+    name: Build .deb package
+    needs: build_rpm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve RPM
+        uses: actions/download-artifact@v4
+        with:
+          name: rpm
+
+      - name: Convert .rpm to .deb
+        run: |
+          sudo apt update
+          sudo apt install -y alien
+          sudo alien -dkv "$NAME_AND_VERSION"-1.noarch.rpm
+
+      - name: Upload .deb as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: run0edit*.deb
+
+  release:
+    name: Release
+    needs: [build_source_archive, build_rpm, build_deb]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            run0edit/run0edit
+            source-archive/*.tar.gz
+            deb/*.deb
+            rpm/*.noarch.rpm
+            srpm/*.src.rpm
