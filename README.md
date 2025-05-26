@@ -26,15 +26,16 @@ example, `/usr/bin/vim`) to one of the files `/etc/run0edit/editor.conf` or
 > sandboxing settings, including `MemoryDenyWriteExecute`, which prevents code
 > generated dynamically at runtime from being executed.
 
-`run0edit` can also be used to edit files that have the immutable flag set. In
-this case, the user will be informed of the presence of the immutable flag and
-asked whether they wish to continue editing; if so, the immutable flag will be
-removed before the edited file contents are copied back to the original location
-and then reapplied afterward. This introduces a brief window during which
-another user could also edit the file (if they were permitted to do so if it
-were not for the immutable flag), so to protect against this, the file is
-compared with the edited temporary file after the immutable flag is reapplied,
-and `run0edit` gives an error message if the file contents do not match.
+`run0edit` can also be used to edit files that have the immutable attribute set.
+In this case, the user will be informed of the presence of the immutable
+attribute and asked whether they wish to continue editing; if so, the immutable
+attribute will be removed before the edited file contents are copied back to the
+original location and then reapplied afterward. This introduces a brief window
+during which another user could also edit the file (if they were permitted to do
+so if it were not for the immutable attribute), so to protect against this, the
+file is compared with the edited temporary file after the immutable attribute is
+reapplied, and `run0edit` gives an error message if the file contents do not
+match.
 
 ## Installation
 

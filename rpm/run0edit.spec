@@ -1,5 +1,5 @@
 Name:           run0edit
-Version:        0.4.4
+Version:        0.5.0
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -34,6 +34,8 @@ install -m 755 %{name} %{buildroot}%{_bindir}/%{name}
 %{_bindir}/%{name}
 
 %changelog
+* Mon May 26 2025 - v0.5.0:
+  - Rewrote script in Python.
 * Thu May 22 2025 - v0.4.4:
   - Fixed bug in immutable flag parsing.
   - Added RPM spec.

@@ -1,26 +1,26 @@
 --- run0edit/run0edit
 +++ secureblue/files/system/usr/bin/run0edit
-@@ -19,7 +19,7 @@
- # limitations under the License.
- # ------------------------------------------------------------------------------
+@@ -30,12 +30,12 @@
  
--readonly version=0.4.4
-+readonly version=0.4.4-secureblue
+ from typing import Final, Sequence
  
- # Set pipefail if it's supported by the shell, disregard if unsupported.
- # shellcheck disable=SC3040
-@@ -104,10 +104,10 @@
- fi
- if [ -f "$editor" ] && [ -x "$editor" ]; then
-     :
--elif command -pv nano > /dev/null; then
--    editor="$(command -pv nano)"
--elif command -pv vi > /dev/null; then
--    editor="$(command -pv vi)"
-+elif [ -f '/usr/bin/nano' ] && [ -x '/usr/bin/nano' ]; then
-+    editor='/usr/bin/nano'
-+elif [ -f '/usr/bin/vi' ] && [ -x '/usr/bin/vi' ]; then
-+    editor='/usr/bin/vi'
- else
-     echo 'Editor not found. Please install either nano or vi, or write the path to' >&2
-     echo 'the text editor of your choice to /etc/run0edit/editor.conf' >&2
+-VERSION: Final[str] = "0.5.0"
++VERSION: Final[str] = "0.5.0-secureblue"
+ 
+ 
+ def find_command(command: str) -> str | None:
+     """Search for command using a default path."""
+-    return shutil.which(command, path=os.defpath)
++    return f"/usr/bin/{command}"
+ 
+ 
+ def editor_path(
+@@ -148,7 +148,7 @@
+ 
+ def find_command(command: str) -> str | None:
+     """Search for command using a default path."""
+-    return shutil.which(command, path=os.defpath)
++    return f"/usr/bin/{command}"
+ 
+ 
+ def readonly_filesystem(path: str) -> bool | None:
