@@ -154,28 +154,30 @@ def copy_to_temp(file_exists: bool, filename: str, directory: str, temp_filename
     return immutable
 
 
+def run_chattr(attribute: str, path: str):
+    """Run chattr to apply attribute to path (if not None). Raises ChattrError if fails."""
+    chattr_cmd = find_command("chattr")
+    if chattr_cmd is None:
+        raise ChattrError("Unable to find chattr command")
+    try:
+        subprocess.run([chattr_cmd, attribute, "--", path], check=True)  # nosec
+    except subprocess.CalledProcessError as e:
+        raise ChattrError from e
+
+
 def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None]):
     """
     Copy the contents of the temp file to the target file, manipulating the
     immutable attribute on chattr_path if provided.
     """
-    chattr_cmd = find_command("chattr")
-    if chattr_cmd is None:
-        raise ChattrError("Unable to find chattr command")
     if chattr_path is not None:
-        try:
-            subprocess.run([chattr_cmd, "-i", "--", chattr_path], check=True)  # nosec
-        except subprocess.CalledProcessError as e:
-            raise ChattrError from e
+        run_chattr("-i", chattr_path)
     try:
         pathlib.Path(filename).touch()
         copy_file_contents(temp_filename, filename)
     finally:
         if chattr_path is not None:
-            try:
-                subprocess.run([chattr_cmd, "+i", "--", chattr_path], check=True)  # nosec
-            except subprocess.CalledProcessError as e:
-                raise ChattrError from e
+            run_chattr("+i", chattr_path)
             print("Immutable attribute reapplied.")
             if not filecmp.cmp(temp_filename, filename):
                 raise FileContentsMismatchError
