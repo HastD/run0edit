@@ -10,7 +10,7 @@ import shutil
 import subprocess  # nosec
 import sys
 
-from typing import Final
+from typing import Final, Union
 
 FILENAME: Final[str] = sys.argv[1]
 TEMP_FILE: Final[str] = sys.argv[2]
@@ -60,12 +60,12 @@ class FileContentsMismatchError(Run0editError):
     """File contents are not what they should be."""
 
 
-def find_command(command: str) -> str | None:
+def find_command(command: str) -> Union[str, None]:
     """Search for command using a default path."""
     return shutil.which(command, path=os.defpath)
 
 
-def readonly_filesystem(path: str) -> bool | None:
+def readonly_filesystem(path: str) -> Union[bool, None]:
     """Determine if the path is on a read-only filesystem."""
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
@@ -154,7 +154,7 @@ def copy_to_temp(file_exists: bool, filename: str, directory: str, temp_filename
     return immutable
 
 
-def copy_to_dest(filename: str, temp_filename: str, chattr_path: str | None):
+def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None]):
     """
     Copy the contents of the temp file to the target file, manipulating the
     immutable attribute on chattr_path if provided.

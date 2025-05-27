@@ -8,7 +8,8 @@ URL:            https://github.com/HastD/%{name}
 Source:         %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
-BuildRequires:  python3
+BuildRequires:  python3 >= 3.9
+Requires:       python3 >= 3.9
 Requires:       systemd >= 248
 
 %description

@@ -28,19 +28,19 @@ import sys
 import textwrap
 import tempfile
 
-from typing import Final, Sequence
+from typing import Final, Sequence, Union
 
 VERSION: Final[str] = "0.5.0"
 
 
-def find_command(command: str) -> str | None:
+def find_command(command: str) -> Union[str, None]:
     """Search for command using a default path."""
     return shutil.which(command, path=os.defpath)
 
 
 def editor_path(
-    *, conf_paths: Sequence[str] | None = None, fallbacks: Sequence[str] | None = None
-) -> str | None:
+    *, conf_paths: Union[Sequence[str], None] = None, fallbacks: Union[Sequence[str], None] = None
+) -> Union[str, None]:
     """Get path to editor executable."""
     is_rx = os.F_OK | os.R_OK | os.X_OK
     if conf_paths is None:
@@ -63,7 +63,7 @@ def editor_path(
     return None
 
 
-def readonly_filesystem(path: str) -> bool | None:
+def readonly_filesystem(path: str) -> Union[bool, None]:
     """Determine if the path is on a read-only filesystem."""
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
@@ -185,17 +185,18 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
     env = os.environb.copy()
     env[b"SYSTEMD_ADJUST_TERMINAL_TITLE"] = b"false"
     process = subprocess.run(run0_args, env=env, check=False)  # nosec
-    match process.returncode:
-        case 0:
-            clean_temp_file(temp_filename)
-            return 0
-        case 226:
-            print_err(f"invalid argument: directory {directory} does not exist")
-            clean_temp_file(temp_filename)
-            return 1
-        case _:
-            clean_temp_file(temp_filename, only_if_empty=True)
-            return process.returncode
+    if process.returncode == 226:
+        # If directory does not exist, namespace creation will fail, causing
+        # run0 to fail with exit status 226:
+        # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
+        print_err(f"invalid argument: directory {directory} does not exist")
+        clean_temp_file(temp_filename)
+        return 1
+    if process.returncode != 0:
+        clean_temp_file(temp_filename, only_if_empty=True)
+        return process.returncode
+    clean_temp_file(temp_filename)
+    return 0
 
 
 def main() -> int:
