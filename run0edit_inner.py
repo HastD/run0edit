@@ -172,15 +172,19 @@ def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None
     """
     if chattr_path is not None:
         run_chattr("-i", chattr_path)
+    copy_error = None
     try:
         pathlib.Path(filename).touch()
         copy_file_contents(temp_filename, filename)
+    except Exception as e:
+        copy_error = e
+        raise e
     finally:
         if chattr_path is not None:
             run_chattr("+i", chattr_path)
             print("Immutable attribute reapplied.")
             if not filecmp.cmp(temp_filename, filename):
-                raise FileContentsMismatchError
+                raise FileContentsMismatchError from copy_error
 
 
 def handle_copy_to_temp(file_exists: bool) -> bool:
