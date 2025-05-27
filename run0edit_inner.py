@@ -5,6 +5,7 @@
 import filecmp
 import os
 import pathlib
+import resource
 import shutil
 import subprocess  # nosec
 import sys
@@ -12,7 +13,7 @@ import sys
 from typing import Final
 
 FILENAME: Final[str] = sys.argv[1]
-TEMP_FILENAME: Final[str] = sys.argv[2]
+TEMP_FILE: Final[str] = sys.argv[2]
 EDITOR: Final[str] = sys.argv[3]
 DEBUG: Final[bool] = 4 < len(sys.argv) and sys.argv[4] == "--debug"
 
@@ -113,12 +114,19 @@ def handle_readonly(path: str):
 
 def copy_file_contents(src: str, dest: str):
     """Copy contents of src to dest. Does not copy metadata."""
-    cp_cmd = find_command("cp")
-    if cp_cmd is None:
-        raise FileCopyError("Unable to find cp command")
     try:
-        subprocess.run([cp_cmd, "--", src, dest], check=True)  # nosec
-    except subprocess.CalledProcessError as e:
+        buffer_size = resource.getpagesize()
+        # Manually setting the flags is necessary because we need to ensure
+        # O_CREAT is not set, otherwise the sticky bit on /tmp prevents us from
+        # writing to a file we don't own (even as root).
+        fd_dest = os.open(dest, os.O_WRONLY | os.O_TRUNC)
+        with open(src, "rb") as f_src, os.fdopen(fd_dest, "wb") as f_dest:
+            while True:
+                buffer = f_src.read(buffer_size)
+                if not buffer:
+                    break
+                f_dest.write(buffer)
+    except OSError as e:
         raise FileCopyError from e
 
 
@@ -180,7 +188,7 @@ def handle_copy_to_temp(file_exists: bool) -> bool:
     """
     base_path = FILENAME if file_exists else DIRECTORY
     try:
-        return copy_to_temp(file_exists, FILENAME, DIRECTORY, TEMP_FILENAME)
+        return copy_to_temp(file_exists, FILENAME, DIRECTORY, TEMP_FILE)
     except NotRegularFileError as e:
         print("run0edit: invalid argument: not a regular file")
         raise e
@@ -188,7 +196,7 @@ def handle_copy_to_temp(file_exists: bool) -> bool:
         print("run0edit: invalid argument: directory does not exist")
         raise e
     except FileCopyError as e:
-        print(f"run0edit: failed to copy {FILENAME} to temporary file at {TEMP_FILENAME}")
+        print(f"run0edit: failed to copy {FILENAME} to temporary file at {TEMP_FILE}")
         raise e
     except ReadOnlyFilesystemError as e:
         print(f"run0edit: {base_path} is on a read-only filesystem.")
@@ -208,21 +216,21 @@ def handle_copy_to_dest(file_exists: bool, immutable: bool):
     Handle errors or manipulate immutable attribute if needed.
     """
     if file_exists:
-        if not filecmp.cmp(TEMP_FILENAME, FILENAME):
+        if not filecmp.cmp(TEMP_FILE, FILENAME):
             chattr_path = FILENAME if immutable else None
         else:
             print(f"run0edit: {FILENAME} unchanged")
             return
     else:
-        if os.path.getsize(TEMP_FILENAME) > 0:
+        if os.path.getsize(TEMP_FILE) > 0:
             chattr_path = DIRECTORY if immutable else None
         else:
             print(f"run0edit: {FILENAME} not created")
             return
     try:
-        copy_to_dest(FILENAME, TEMP_FILENAME, chattr_path)
+        copy_to_dest(FILENAME, TEMP_FILE, chattr_path)
     except FileCopyError as e:
-        print(f"run0edit: unable to write temporary file at {TEMP_FILENAME} to {FILENAME}")
+        print(f"run0edit: unable to write temporary file at {TEMP_FILE} to {FILENAME}")
         raise e
     except ChattrError as e:
         print(f"run0edit: failed to run chattr on {chattr_path}")
@@ -249,9 +257,9 @@ def main():
         raise EditTempFileError("Unable to call run0 to start unprivileged editor process.")
     uid = int(os.environ["SUDO_UID"])
     try:
-        subprocess.run([run0_cmd, f"--user={uid}", "--", EDITOR, TEMP_FILENAME], check=True)  # nosec
+        subprocess.run([run0_cmd, f"--user={uid}", "--", EDITOR, TEMP_FILE], check=True)  # nosec
     except subprocess.CalledProcessError as e:
-        print(f"run0edit: failed to edit temporary file at {TEMP_FILENAME}")
+        print(f"run0edit: failed to edit temporary file at {TEMP_FILE}")
         raise EditTempFileError from e
 
     handle_copy_to_dest(file_exists, immutable)
