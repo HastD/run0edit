@@ -1,4 +1,6 @@
-run0edit
 .actrc
 .artifacts
+.coverage
+.ruff_cache
 __pycache__
+run0edit

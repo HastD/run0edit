@@ -12,49 +12,6 @@ from unittest import mock
 import run0edit_inner as inner
 
 
-class TestReadonlyFilesystem(unittest.TestCase):
-    """Tests for readonly_filesystem"""
-
-    @mock.patch("os.statvfs")
-    def test_ro_path(self, mock_statvfs):
-        """Should detect read-only filesystem"""
-        mock_statvfs_result = mock.NonCallableMock()
-        mock_statvfs_result.f_flag = os.ST_RDONLY
-        mock_statvfs.return_value = mock_statvfs_result
-        self.assertTrue(inner.readonly_filesystem("/some/path"))
-        self.assertEqual(mock_statvfs.call_args.args, ("/some/path",))
-
-    def test_rw_path(self):
-        """Should detect non-read-only filesystem"""
-        self.assertFalse(inner.readonly_filesystem("/var"))
-
-    def test_bad_path(self):
-        """Should return None for nonexistent path"""
-        self.assertIsNone(inner.readonly_filesystem("/this/path/does/not/exist"))
-
-
-class TestFindCommand(unittest.TestCase):
-    """Tests for find_command"""
-
-    def test_finds_cmds(self):
-        """Should find external commands used by module"""
-        self.assertIsNotNone(inner.find_command("chattr"))
-        self.assertIsNotNone(inner.find_command("lsattr"))
-        if shutil.which("run0"):
-            self.assertIsNotNone(inner.find_command("run0"))
-
-    def test_nonexistent_cmd(self):
-        """Should not find nonexistent command"""
-        self.assertIsNone(inner.find_command("this_cmd_does_not_exist"))
-
-    @mock.patch("shutil.which")
-    def test_check_args(self, mock_which):
-        """Should pass correct arguments to shutil.which"""
-        cmd = mock.sentinel.cmd
-        inner.find_command(cmd)
-        self.assertEqual(mock_which.call_args_list, [((cmd,), {"path": os.defpath})])
-
-
 class TestRunCommand(unittest.TestCase):
     """Tests for run_command"""
 
@@ -67,6 +24,10 @@ class TestRunCommand(unittest.TestCase):
         """Command should not be run as a shell"""
         out = inner.run_command("echo", ";", "echo", "foo", capture_output=True)
         self.assertEqual(out, "; echo foo\n")
+
+    def test_not_captured(self):
+        """Should get no output if not captured"""
+        self.assertIsNone(inner.run_command("true"))
 
     def test_cmd_not_found(self):
         """Running nonexistent command should raise correct error"""
@@ -426,7 +387,7 @@ class TestHandleCopyToDest(TestCaseWithFiles):
         with open(self.filename, "rb") as f:
             self.assertEqual(f.read(), self.temp_contents)
         self.assertFalse(mock_chattr.called)
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_file_edited_immutable(self, mock_chattr, mock_stdout):
         """Should copy and chattr if temp file differs from original immutable file"""
@@ -453,7 +414,7 @@ class TestHandleCopyToDest(TestCaseWithFiles):
         with open(self.new_filename, "rb") as f:
             self.assertEqual(f.read(), self.temp_contents)
         self.assertFalse(mock_chattr.called)
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_file_created_immutable(self, mock_chattr, mock_stdout):
         """Should chattr directory and copy to new file if temp file is non-empty"""
@@ -502,7 +463,7 @@ class TestRunEditor(unittest.TestCase):
         path = mock.sentinel.path
         inner.run_editor(uid=42, editor=editor, path=path)
         self.assertEqual(mock_run_cmd.call_args.args, ("run0", "--user=42", "--", editor, path))
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_error_messages(self, mock_run_cmd, mock_stdout):
         """Should print appropriate error messages and raise EditTempFileError"""
@@ -548,7 +509,7 @@ class TestRun(TestCaseWithFiles):
             mock_copy_dest.call_args.args,
             (self.filename, directory, self.temp_filename, True, mock.ANY),
         )
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_edit_file(self, mock_run_editor, mock_stdout):
         """Should copy edited tempfile contents to target file"""
@@ -557,7 +518,7 @@ class TestRun(TestCaseWithFiles):
         inner.run(self.filename, self.temp_filename, "editor", 42)
         with open(self.filename, "rb") as f:
             self.assertEqual(f.read(), text)
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     @mock.patch("run0edit_inner.copy_to_dest")
     def test_edit_unchanged(self, mock_copy_to_dest, mock_run_editor, mock_stdout):
@@ -576,7 +537,7 @@ class TestRun(TestCaseWithFiles):
         inner.run(self.new_filename, self.temp_filename, "editor", 42)
         with open(self.new_filename, "rb") as f:
             self.assertEqual(f.read(), text)
-        self.assertFalse(mock_stdout.getvalue())
+        self.assertEqual(mock_stdout.getvalue(), "")
 
     @mock.patch("run0edit_inner.copy_to_dest")
     def test_create_empty(self, mock_copy_to_dest, mock_run_editor, mock_stdout):
