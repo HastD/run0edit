@@ -61,17 +61,19 @@ class FileContentsMismatchError(Run0editError):
     """File contents are not what they should be."""
 
 
-def find_command(command: str) -> Union[str, None]:
-    """Search for command using a default path."""
-    return shutil.which(command, path=os.defpath)
-
-
 def readonly_filesystem(path: str) -> Union[bool, None]:
     """Determine if the path is on a read-only filesystem."""
+    # pylint: disable=duplicate-code
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
     except OSError:
         return None
+
+
+def find_command(command: str) -> Union[str, None]:
+    """Search for command using a default path."""
+    # pylint: disable=duplicate-code
+    return shutil.which(command, path=os.defpath)
 
 
 def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str, None]:
@@ -179,9 +181,7 @@ def run_chattr(attribute: str, path: str):
     """Run chattr to apply attribute to path (if not None). Raises ChattrError if fails."""
     try:
         run_command("chattr", attribute, "--", path)
-    except CommandNotFoundError as e:
-        raise ChattrError from e
-    except SubprocessError as e:
+    except (CommandNotFoundError, SubprocessError) as e:
         raise ChattrError from e
 
 
@@ -202,8 +202,9 @@ def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None
     finally:
         run_chattr("+i", chattr_path)
         print("Immutable attribute reapplied.")
+    filecmp.clear_cache()
     try:
-        if not filecmp.cmp(temp_filename, filename):
+        if not filecmp.cmp(temp_filename, filename, shallow=False):
             raise FileContentsMismatchError
     except OSError as e:
         raise FileContentsMismatchError from e
@@ -281,6 +282,18 @@ def handle_copy_to_dest(
         raise e
 
 
+def run_editor(*, uid: int, editor: str, path: str):
+    """Run the editor as the given UID to edit the file at the given path."""
+    try:
+        run_command("run0", f"--user={uid}", "--", editor, path)
+    except CommandNotFoundError as e:
+        print("run0edit: failed to call run0 to start editor")
+        raise EditTempFileError from e
+    except SubprocessError as e:
+        print(f"run0edit: failed to edit temporary file at {path}")
+        raise EditTempFileError from e
+
+
 def run(filename: str, temp_file: str, editor: str, uid: int, *, prompt_immutable: bool = True):
     """
     Copy file to temp file, run editor, and copy temp file back to target file.
@@ -297,18 +310,12 @@ def run(filename: str, temp_file: str, editor: str, uid: int, *, prompt_immutabl
         return
 
     # Attempt to edit the temp file as the original user.
-    try:
-        run_command("run0", f"--user={uid}", "--", editor, temp_file)
-    except CommandNotFoundError as e:
-        raise EditTempFileError from e
-    except SubprocessError as e:
-        print(f"run0edit: failed to edit temporary file at {temp_file}")
-        raise EditTempFileError from e
+    run_editor(uid=uid, editor=editor, path=temp_file)
 
     handle_copy_to_dest(filename, directory, temp_file, file_exists, immutable)
 
 
-def main(args: Sequence[str]) -> int:
+def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
     """Main function."""
     if len(args) < 4:
         return 2
@@ -316,7 +323,8 @@ def main(args: Sequence[str]) -> int:
     temp_file = args[2]
     editor = args[3]
     debug = len(args) > 4 and args[4] == "--debug"
-    uid = int(os.environ["SUDO_UID"])
+    if uid is None:
+        uid = int(os.environ["SUDO_UID"])
     try:
         run(filename, temp_file, editor, uid)
     except Run0editError as e:

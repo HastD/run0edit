@@ -33,8 +33,18 @@ from typing import Final, Sequence, Union
 VERSION: Final[str] = "0.5.0"
 
 
+def readonly_filesystem(path: str) -> Union[bool, None]:
+    """Determine if the path is on a read-only filesystem."""
+    # pylint: disable=duplicate-code
+    try:
+        return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
+    except OSError:
+        return None
+
+
 def find_command(command: str) -> Union[str, None]:
     """Search for command using a default path."""
+    # pylint: disable=duplicate-code
     return shutil.which(command, path=os.defpath)
 
 
@@ -61,14 +71,6 @@ def editor_path(
         if editor is not None:
             return editor
     return None
-
-
-def readonly_filesystem(path: str) -> Union[bool, None]:
-    """Determine if the path is on a read-only filesystem."""
-    try:
-        return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
-    except OSError:
-        return None
 
 
 def make_temp_file(path: str) -> str:
