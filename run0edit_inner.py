@@ -256,7 +256,7 @@ def handle_copy_to_dest(
     Handle errors or manipulate immutable attribute if needed.
     """
     if file_exists:
-        if not filecmp.cmp(temp_file, filename):
+        if not filecmp.cmp(temp_file, filename, shallow=False):
             chattr_path = filename if immutable else None
         else:
             print(f"run0edit: {filename} unchanged")
@@ -270,7 +270,7 @@ def handle_copy_to_dest(
     try:
         copy_to_dest(filename, temp_file, chattr_path)
     except FileCopyError as e:
-        print(f"run0edit: unable to write temporary file at {temp_file} to {filename}")
+        print(f"run0edit: unable to copy contents of temporary file at {temp_file} to {filename}")
         raise e
     except ChattrError as e:
         print(f"run0edit: failed to run chattr on {chattr_path}")

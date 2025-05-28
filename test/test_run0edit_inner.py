@@ -9,20 +9,20 @@ import tempfile
 import unittest
 from unittest import mock
 
-from typing import Final
-
 import run0edit_inner as inner
-
-# This should be reliably mounted read-only on systems running systemd
-RO_FS_EXAMPLE: Final[str] = "/run/credentials/systemd-journald.service"
 
 
 class TestReadonlyFilesystem(unittest.TestCase):
     """Tests for readonly_filesystem"""
 
-    def test_ro_path(self):
+    @mock.patch("os.statvfs")
+    def test_ro_path(self, mock_statvfs):
         """Should detect read-only filesystem"""
-        self.assertTrue(inner.readonly_filesystem(RO_FS_EXAMPLE))
+        mock_statvfs_result = mock.NonCallableMock()
+        mock_statvfs_result.f_flag = os.ST_RDONLY
+        mock_statvfs.return_value = mock_statvfs_result
+        self.assertTrue(inner.readonly_filesystem("/some/path"))
+        self.assertEqual(mock_statvfs.call_args.args, ("/some/path",))
 
     def test_rw_path(self):
         """Should detect non-read-only filesystem"""
@@ -40,11 +40,19 @@ class TestFindCommand(unittest.TestCase):
         """Should find external commands used by module"""
         self.assertIsNotNone(inner.find_command("chattr"))
         self.assertIsNotNone(inner.find_command("lsattr"))
-        self.assertIsNotNone(inner.find_command("run0"))
+        if shutil.which("run0"):
+            self.assertIsNotNone(inner.find_command("run0"))
 
     def test_nonexistent_cmd(self):
         """Should not find nonexistent command"""
         self.assertIsNone(inner.find_command("this_cmd_does_not_exist"))
+
+    @mock.patch("shutil.which")
+    def test_check_args(self, mock_which):
+        """Should pass correct arguments to shutil.which"""
+        cmd = mock.sentinel.cmd
+        inner.find_command(cmd)
+        self.assertEqual(mock_which.call_args_list, [((cmd,), {"path": os.defpath})])
 
 
 class TestRunCommand(unittest.TestCase):
@@ -133,29 +141,33 @@ class TestAskImmutable(unittest.TestCase):
 class TestHandleReadonly(unittest.TestCase):
     """Tests for handle_readonly"""
 
-    def test_ro_fs(self):
+    @mock.patch("run0edit_inner.readonly_filesystem")
+    def test_ro_fs(self, mock_ro_fs):
         """Path on read-only filesystem should raise correct error"""
+        mock_ro_fs.return_value = True
         with self.assertRaises(inner.ReadOnlyFilesystemError):
-            inner.handle_readonly(RO_FS_EXAMPLE)
+            inner.handle_readonly("/var")
 
+    @mock.patch("run0edit_inner.is_immutable")
     @mock.patch("run0edit_inner.ask_immutable")
-    def test_immutable_with_prompt(self, mock_ask_immutable):
+    def test_immutable_with_prompt(self, mock_ask_immutable, mock_is_immutable):
         """
         Should ask user if immutable and prompt=True, and should raise correct
         error if user answers no.
         """
-        with mock.patch("run0edit_inner.is_immutable", new=lambda _: True):
-            mock_ask_immutable.side_effect = [True, False]
-            inner.handle_readonly("...")
-            with self.assertRaises(inner.ReadOnlyImmutableError):
-                inner.handle_readonly("...")
+        mock_is_immutable.return_value = True
+        mock_ask_immutable.side_effect = [True, False]
+        inner.handle_readonly("/var")
+        with self.assertRaises(inner.ReadOnlyImmutableError):
+            inner.handle_readonly("/var")
         self.assertTrue(mock_ask_immutable.called)
 
+    @mock.patch("run0edit_inner.is_immutable")
     @mock.patch("run0edit_inner.ask_immutable")
-    def test_immutable_no_prompt(self, mock_ask_immutable):
+    def test_immutable_no_prompt(self, mock_ask_immutable, mock_is_immutable):
         """Should not ask user if immutable and prompt=False"""
-        with mock.patch("run0edit_inner.is_immutable", new=lambda _: True):
-            inner.handle_readonly("...", prompt=False)
+        mock_is_immutable.return_value = True
+        inner.handle_readonly("/var", prompt=False)
         self.assertFalse(mock_ask_immutable.called)
 
     def test_ro_other(self):
@@ -210,58 +222,68 @@ class TestCopyFileContents(TestCaseWithFiles):
             inner.copy_file_contents(self.temp_filename, self.new_filename)
 
 
-@mock.patch("run0edit_inner.handle_readonly")
 @mock.patch("run0edit_inner.copy_file_contents")
 class TestCopyToTemp(TestCaseWithFiles):
     """Tests for copy_to_temp"""
 
-    def test_not_regular_file(self, mock_copy, mock_handle_ro):
+    RO_FILE: str = "/proc/version"
+    RO_DIR: str = "/proc"
+
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_not_regular_file(self, mock_handle_ro, mock_copy):
         """Should raise error and not copy if target is not regular file"""
         with self.assertRaises(inner.NotRegularFileError):
             inner.copy_to_temp(True, "/etc", "/", self.temp_filename)
         self.assertFalse(mock_copy.called)
         self.assertFalse(mock_handle_ro.called)
 
-    def test_read_only_error(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.readonly_filesystem")
+    def test_read_only_error(self, mock_ro_fs, mock_copy):
         """Should raise error and not copy if read-only filesystem"""
-        mock_handle_ro.side_effect = [inner.ReadOnlyFilesystemError]
+        mock_ro_fs.return_value = True
         with self.assertRaises(inner.ReadOnlyFilesystemError):
-            inner.copy_to_temp(True, "/bin/sh", "/", self.temp_filename)
+            inner.copy_to_temp(True, self.RO_FILE, self.RO_DIR, self.temp_filename)
         self.assertFalse(mock_copy.called)
 
-    def test_immutable(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_immutable(self, mock_handle_ro, mock_copy):
         """Should copy if read-only due to immutable flag that will be removed"""
-        self.assertTrue(inner.copy_to_temp(True, "/bin/sh", "/", self.temp_filename))
-        self.assertEqual(mock_copy.call_args.args, ("/bin/sh", self.temp_filename))
-        self.assertEqual(mock_handle_ro.call_args.args, ("/bin/sh",))
+        self.assertTrue(inner.copy_to_temp(True, self.RO_FILE, self.RO_DIR, self.temp_filename))
+        self.assertEqual(mock_copy.call_args.args, (self.RO_FILE, self.temp_filename))
+        self.assertEqual(mock_handle_ro.call_args.args, (self.RO_FILE,))
 
-    def test_regular_file(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_regular_file(self, mock_handle_ro, mock_copy):
         """Should copy if target file is writable"""
         self.assertFalse(inner.copy_to_temp(True, self.filename, "dir", self.temp_filename))
         self.assertEqual(mock_copy.call_args.args, (self.filename, self.temp_filename))
         self.assertFalse(mock_handle_ro.called)
 
-    def test_no_directory(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_no_directory(self, mock_handle_ro, mock_copy):
         """Should raise error if directory does not exist"""
         with self.assertRaises(inner.NoDirectoryError):
             inner.copy_to_temp(False, "...", "/no/such/directory", self.temp_filename)
         self.assertFalse(mock_copy.called)
         self.assertFalse(mock_handle_ro.called)
 
-    def test_read_only_dir_error(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.readonly_filesystem")
+    def test_read_only_dir_error(self, mock_ro_fs, mock_copy):
         """Should raise error if directory on read-only filesystem"""
-        mock_handle_ro.side_effect = [inner.ReadOnlyFilesystemError]
+        mock_ro_fs.return_value = True
         with self.assertRaises(inner.ReadOnlyFilesystemError):
-            inner.copy_to_temp(False, "/usr/foo", "/usr", self.temp_filename)
+            inner.copy_to_temp(False, self.RO_FILE, self.RO_DIR, self.temp_filename)
         self.assertFalse(mock_copy.called)
 
-    def test_immutable_dir(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_immutable_dir(self, mock_handle_ro, mock_copy):
         """Should succeed if directory read-only due to immutable flag that will be removed"""
-        self.assertTrue(inner.copy_to_temp(False, "/usr/foo", "/usr", self.temp_filename))
+        self.assertTrue(inner.copy_to_temp(False, self.RO_FILE, self.RO_DIR, self.temp_filename))
         self.assertFalse(mock_copy.called)
-        self.assertEqual(mock_handle_ro.call_args.args, ("/usr",))
+        self.assertEqual(mock_handle_ro.call_args.args, (self.RO_DIR,))
 
-    def test_regular_dir(self, mock_copy, mock_handle_ro):
+    @mock.patch("run0edit_inner.handle_readonly")
+    def test_regular_dir(self, mock_handle_ro, mock_copy):
         """Should copy if target file is writable"""
         self.assertFalse(
             inner.copy_to_temp(False, self.new_filename, self.new_dir, self.temp_filename)
@@ -276,8 +298,8 @@ class TestRunChattr(unittest.TestCase):
 
     def test_runs_command(self, mock_run_command):
         """Should run command with right args"""
-        attr = "+i"
-        path = "foo/bar"
+        attr = mock.sentinel.attr
+        path = mock.sentinel.path
         inner.run_chattr(attr, path)
         self.assertEqual(mock_run_command.call_args.args, ("chattr", attr, "--", path))
 
@@ -455,7 +477,7 @@ class TestHandleCopyToDest(TestCaseWithFiles):
     def test_error_messages(self, mock_copy, mock_chattr, mock_stdout):
         """Should print appropriate error messages and re-raise exceptions"""
         errors = {
-            inner.FileCopyError: "unable to write temporary file at ",
+            inner.FileCopyError: "unable to copy contents of temporary file",
             inner.ChattrError: "failed to run chattr",
             inner.FileContentsMismatchError: "does not match contents of edited tempfile",
         }
@@ -476,10 +498,10 @@ class TestRunEditor(unittest.TestCase):
 
     def test_check_args(self, mock_run_cmd, mock_stdout):
         """Should pass correct arguments to run_command"""
-        inner.run_editor(uid=42, editor="butterfly", path="some/path")
-        self.assertEqual(
-            mock_run_cmd.call_args.args, ("run0", "--user=42", "--", "butterfly", "some/path")
-        )
+        editor = mock.sentinel.editor
+        path = mock.sentinel.path
+        inner.run_editor(uid=42, editor=editor, path=path)
+        self.assertEqual(mock_run_cmd.call_args.args, ("run0", "--user=42", "--", editor, path))
         self.assertFalse(mock_stdout.getvalue())
 
     def test_error_messages(self, mock_run_cmd, mock_stdout):
@@ -511,14 +533,16 @@ class TestRun(TestCaseWithFiles):
     @mock.patch("run0edit_inner.handle_copy_to_temp")
     def test_check_args(self, mock_copy_temp, mock_copy_dest, mock_run_editor, mock_stdout):
         """Should pass correct arguments to functions"""
-        inner.run(self.filename, self.temp_filename, "editor", 42)
+        editor = mock.sentinel.editor
+        uid = mock.sentinel.uid
+        inner.run(self.filename, self.temp_filename, editor, uid)
         directory = os.path.dirname(self.filename)
         self.assertEqual(
             mock_copy_temp.call_args.args, (self.filename, directory, self.temp_filename, True)
         )
         self.assertEqual(
             mock_run_editor.call_args.kwargs,
-            {"uid": 42, "editor": "editor", "path": self.temp_filename},
+            {"uid": uid, "editor": editor, "path": self.temp_filename},
         )
         self.assertEqual(
             mock_copy_dest.call_args.args,
@@ -575,7 +599,7 @@ class TestRun(TestCaseWithFiles):
             mock_ask_imm.return_value = False
             mock_is_imm.return_value = True
             mock_ro_fs.return_value = False
-            inner.run("/etc/hosts", self.temp_filename, "editor", 42)
+            inner.run("/proc/version", self.temp_filename, "editor", 42)
         self.assertFalse(mock_run_editor.called)
         self.assertIn("declined to remove immutable attribute", mock_stdout.getvalue())
 
@@ -585,30 +609,32 @@ class TestRun(TestCaseWithFiles):
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
+    ARGS = [mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3, "--debug"]
+
     def test_too_few_args(self, mock_run):
         """Should return 2 if too few arguments"""
-        self.assertEqual(inner.main(["0", "1", "2"]), 2)
+        self.assertEqual(inner.main(self.ARGS[:3]), 2)
         self.assertFalse(mock_run.called)
 
     def test_normal_run(self, mock_run):
         """Should pass correct args to run and return 0"""
-        self.assertEqual(inner.main(["0", "1", "2", "3"]), 0)
-        self.assertEqual(mock_run.call_args.args, ("1", "2", "3", 42))
+        self.assertEqual(inner.main(self.ARGS[:4]), 0)
+        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
 
     def test_normal_run_with_uid(self, mock_run):
         """Should pass correct args to run and return 0"""
-        self.assertEqual(inner.main(["0", "1", "2", "3"], uid=5), 0)
-        self.assertEqual(mock_run.call_args.args, ("1", "2", "3", 5))
+        self.assertEqual(inner.main(self.ARGS[:4], uid=5), 0)
+        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [5]))
 
     def test_failed_run(self, mock_run):
         """Should pass correct args to run and return 1"""
         mock_run.side_effect = inner.Run0editError
-        self.assertEqual(inner.main(["0", "1", "2", "3"]), 1)
-        self.assertEqual(mock_run.call_args.args, ("1", "2", "3", 42))
+        self.assertEqual(inner.main(self.ARGS[:4]), 1)
+        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
 
     def test_failed_run_debug(self, mock_run):
         """Should pass correct args to run and raise exception"""
         mock_run.side_effect = inner.Run0editError
         with self.assertRaises(inner.Run0editError):
-            inner.main(["0", "1", "2", "3", "--debug"])
-        self.assertEqual(mock_run.call_args.args, ("1", "2", "3", 42))
+            inner.main(self.ARGS)
+        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
