@@ -50,22 +50,28 @@ def find_command(command: str) -> Union[str, None]:
     return shutil.which(command, path=os.defpath)
 
 
+def is_valid_executable(path: str) -> bool:
+    """Test if path is an absolute path to an executable"""
+    is_rx = os.F_OK | os.R_OK | os.X_OK
+    return path.startswith("/") and os.path.isfile(path) and os.access(path, is_rx)
+
+
 def editor_path(
-    *, conf_paths: Union[Sequence[str], None] = None, fallbacks: Union[Sequence[str], None] = None
+    *,
+    conf_paths: Union[Sequence[str], None] = None,
+    fallbacks: Union[Sequence[str], None] = None,
 ) -> Union[str, None]:
     """Get path to editor executable."""
-    is_rx = os.F_OK | os.R_OK | os.X_OK
     if conf_paths is None:
-        conf_paths = ("/etc/run0edit/editor.conf", "/usr/etc/run0edit/editor.conf")
+        conf_paths = ("/etc/run0edit/editor.conf",)
     for conf_path in conf_paths:
         try:
             with open(conf_path, "r", encoding="utf8") as f:
                 editor = f.read().strip()
         except OSError:
             continue
-        else:
-            if os.path.isfile(editor) and os.access(editor, is_rx):
-                return editor
+        if is_valid_executable(editor):
+            return editor
     if fallbacks is None:
         fallbacks = ("nano", "vi")
     for fallback in fallbacks:
@@ -130,14 +136,20 @@ def sandbox_path(path: str) -> str:
     return os.path.realpath(rw_path)
 
 
+class MissingCommandError(Exception):
+    """A command essential for running the program was not found."""
+
+
 def build_run0_arguments(
     path: str, temp_path: str, editor: str, *, debug: bool = False
 ) -> list[str]:
     """Construct the arguments to be passed to run0."""
     run0_cmd = find_command("run0")
+    if run0_cmd is None:
+        raise MissingCommandError("run0")
     python_cmd = find_command("python3")
-    if run0_cmd is None or python_cmd is None:
-        raise RuntimeError("run0 or python3 command not found")
+    if python_cmd is None:
+        raise MissingCommandError("python3")
     args = [run0_cmd, f'--description=run0edit "{path}"']
     for systemd_property in SYSTEMD_SANDBOX_PROPERTIES:
         args.append(f"--property={systemd_property}")
@@ -198,15 +210,21 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
 def main() -> int:
     """Main function. Return value becomes the exit code."""
     description = "run0edit allows a permitted user to edit a file as root."
-    epilog = """\
-    To use another text editor, write the path to your text editor of choice to
-        /etc/run0edit/editor.conf"""
+    epilog = "The default choice of text editor may be configured at /etc/run0edit/editor.conf"
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
+    parser.add_argument("--editor", help="absolute path to text editor (optional)")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
     args = parser.parse_args()
-    editor = editor_path()
+    if args.editor is not None:
+        if is_valid_executable(args.editor):
+            editor = os.path.realpath(args.editor)
+        else:
+            print_err(f"{args.editor} is not an absolute path to an executable file")
+            return 1
+    else:
+        editor = editor_path()
     if editor is None:
         print_err("""
             Editor not found. Please install either nano or vi, or write the path to
@@ -215,7 +233,14 @@ def main() -> int:
         return 1
     exit_code = 0
     for path in args.paths:
-        exit_code = run(path, editor, debug=args.debug)
+        try:
+            exit_code = run(path, editor, debug=args.debug)
+        except MissingCommandError as e:
+            print_err(f"{e.args[0]} command not found")
+            if args.debug:
+                raise e
+            else:
+                return 1
         if exit_code != 0:
             break
     return exit_code

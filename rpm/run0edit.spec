@@ -38,7 +38,8 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %changelog
 * Thu May 29 2025 - v0.5.0:
   - Rewrote script in Python.
-  - Switched to using separate file in `/usr/libexec` for inner script.
+  - Switched to using separate file in /usr/libexec for inner script.
+  - Added --editor option to choose a different editor.
   - Added unit tests.
 * Thu May 22 2025 - v0.4.4:
   - Fixed bug in immutable flag parsing.

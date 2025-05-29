@@ -16,10 +16,10 @@ directory. The name of the temporary file is derived from the name of the
 original file, with a randomly generated suffix to avoid conflicts with existing
 files.
 
-The choice of editor can be customized by writing the path to a text editor (for
-example, `/usr/bin/vim`) to one of the files `/etc/run0edit/editor.conf` or
-`/usr/etc/run0edit/editor.conf`. If this does not point to an executable file,
-`run0edit` will default to using `nano` or `vi`.
+The choice of editor can be customized by writing the absolute path to a text
+editor (for example, `/usr/bin/vim`) to the file `/etc/run0edit/editor.conf`, or
+using the `--editor` command-line option. If this path does not point to an
+executable file, `run0edit` will default to using `nano` or `vi`.
 
 > Note: Editors that make use of JIT compilation (such as Neovim built with
 > LuaJIT) might not work: as a security measure, `run0edit` makes use of systemd
@@ -60,7 +60,11 @@ Note: `run0edit` requires systemd version 248 or newer.
 ## Usage
 
 ```
-run0edit FILE
+run0edit [--editor EDITOR] FILE
 run0edit [--help | -h]
 run0edit [--version | -v]
 ```
+
+(There is also a `--debug` option meant for debugging purposes; it causes the
+program to exit with a stack trace in various error states instead of printing a
+more user-friendly error message.)
