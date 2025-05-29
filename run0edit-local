@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run run0edit in local directory. Useful for testing.
+script="$(sed '/^INNER_SCRIPT_PATH:/s/".*"/"run0edit_inner.py"/' run0edit_main.py)"
+python3 -c "$script" "$@"

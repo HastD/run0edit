@@ -10,7 +10,8 @@ import shutil
 import subprocess  # nosec
 import sys
 
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
 
 class Run0editError(Exception):

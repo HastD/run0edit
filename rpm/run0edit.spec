@@ -25,18 +25,21 @@ copied back to the original location when the editor is closed.
 %autosetup
 
 %build
-python3 build.py
 
 %install
-mkdir -p %{buildroot}%{_bindir} %{buildroot}%{_sysconfdir}/%{name}
-install -m 755 %{name} %{buildroot}%{_bindir}/%{name}
+mkdir -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/%{name} %{buildroot}%{_sysconfdir}/%{name}
+install -m 755 %{name}_main.py %{buildroot}%{_bindir}/%{name}
+install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner.py
 
 %files
 %{_bindir}/%{name}
+%{_libexecdir}/%{name}
 
 %changelog
-* Mon May 26 2025 - v0.5.0:
+* Thu May 29 2025 - v0.5.0:
   - Rewrote script in Python.
+  - Switched to using separate file in `/usr/libexec` for inner script.
+  - Added unit tests.
 * Thu May 22 2025 - v0.4.4:
   - Fixed bug in immutable flag parsing.
   - Added RPM spec.

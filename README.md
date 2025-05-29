@@ -50,8 +50,9 @@ Manual installation:
 ```sh
 git clone https://github.com/HastD/run0edit
 cd run0edit
-python3 ./build.py
-run0 install ./run0edit /usr/local/bin/
+run0 mkdir -p /usr/libexec/run0edit
+run0 install -m 755 run0edit_main.py /usr/bin/run0edit
+run0 install -m 644 run0edit_inner.py /usr/libexec/run0edit/
 ```
 
 Note: `run0edit` requires systemd version 248 or newer.
@@ -59,7 +60,7 @@ Note: `run0edit` requires systemd version 248 or newer.
 ## Usage
 
 ```
-run0edit [--] "path/to/file"
-run0edit --help | -h
-run0edit --version | -v
+run0edit FILE
+run0edit [--help | -h]
+run0edit [--version | -v]
 ```

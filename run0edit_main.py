@@ -28,9 +28,11 @@ import sys
 import textwrap
 import tempfile
 
-from typing import Final, Sequence, Union
+from collections.abc import Sequence
+from typing import Final, Union
 
-VERSION: Final[str] = "0.5.0"
+__version__: Final[str] = "0.5.0"
+INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 
 
 def readonly_filesystem(path: str) -> Union[bool, None]:
@@ -83,13 +85,6 @@ def clean_temp_file(path: str, *, only_if_empty: bool = False):
     """Remove the temporary file (optionally only if empty)."""
     if not only_if_empty or os.path.getsize(path) == 0:
         os.remove(path)
-
-
-# fmt: off
-INNER_SCRIPT: Final[str] = r'''
-{{ SCRIPT }}
-'''
-# fmt: on
 
 
 def escape_path(path: str) -> str:
@@ -150,8 +145,7 @@ def build_run0_arguments(
     args += [
         f'--property=ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"',
         python_cmd,
-        "-c",
-        INNER_SCRIPT,
+        INNER_SCRIPT_PATH,
         path,
         temp_path,
         editor,
@@ -163,7 +157,7 @@ def build_run0_arguments(
 
 def print_err(message: str):
     """Print error message to stderr with text wrapping."""
-    print(textwrap.wrap(f"run0edit: {message}"), file=sys.stderr)
+    print("\n".join(textwrap.wrap(f"run0edit: {message}")), file=sys.stderr)
 
 
 def run(path: str, editor: str, *, debug: bool = False) -> int:
@@ -208,7 +202,7 @@ def main() -> int:
     To use another text editor, write the path to your text editor of choice to
         /etc/run0edit/editor.conf"""
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
-    parser.add_argument("-v", "--version", action="version", version=f"run0edit {VERSION}")
+    parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
     args = parser.parse_args()
