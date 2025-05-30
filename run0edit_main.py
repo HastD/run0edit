@@ -22,6 +22,7 @@ limitations under the License.
 
 import argparse
 import os
+import pathlib
 import shutil
 import subprocess  # nosec
 import sys
@@ -53,7 +54,7 @@ def find_command(command: str) -> Union[str, None]:
 def is_valid_executable(path: str) -> bool:
     """Test if path is an absolute path to an executable"""
     is_rx = os.F_OK | os.R_OK | os.X_OK
-    return path.startswith("/") and os.path.isfile(path) and os.access(path, is_rx)
+    return os.path.isabs(path) and os.path.isfile(path) and os.access(path, is_rx)
 
 
 def editor_path(
@@ -78,6 +79,32 @@ def editor_path(
         editor = find_command(fallback)
         if editor is not None:
             return editor
+    return None
+
+
+def directory_does_not_exist(path: str) -> Union[bool, None]:
+    """
+    Check if the directory containing the path definitely does not exist.
+    Returns None if unable to determine (e.g. due to permission issues).
+    """
+    real_path = pathlib.Path(path).resolve()
+    partial = pathlib.Path("/")
+    # Walk the directory tree from the filesystem root to the target directory
+    for part in real_path.parts[1:-1]:
+        try:
+            if part not in os.listdir(partial):
+                # Next directory doesn't exist
+                return True
+        except NotADirectoryError:
+            return True
+        except OSError:
+            # Current directory exists but we don't have permission to list its contents
+            return None
+        partial = partial / part
+    if os.access(real_path.parent, os.F_OK):
+        # If parent is not a directory then path is invalid so return True
+        return not os.path.isdir(real_path.parent)
+    # Parent exists but unable to determine if it's a directory
     return None
 
 
@@ -169,35 +196,46 @@ def build_run0_arguments(
 
 def print_err(message: str):
     """Print error message to stderr with text wrapping."""
-    print("\n".join(textwrap.wrap(f"run0edit: {message}")), file=sys.stderr)
+    print("\n".join(textwrap.wrap(f"run0edit: {message.strip()}")), file=sys.stderr)
+
+
+def validate_path(path: str) -> Union[str, None]:
+    """
+    Check if the path is valid (returning None) or if we should terminate
+    early with error message (returned as a string).
+    """
+    if os.path.isdir(path):
+        return f"{path} is a directory."
+    if os.path.isfile(path) and os.access(path, os.R_OK | os.W_OK):
+        return f"{path} is writable by the current user; run0edit is unnecessary."
+    directory = os.path.dirname(path)
+    if directory_does_not_exist(path):
+        return f"No such directory {directory}"
+    readonly = readonly_filesystem(path)
+    if readonly is None:
+        readonly = readonly_filesystem(directory)
+    if readonly:
+        return f"{path} is on a read-only filesystem."
+    return None
 
 
 def run(path: str, editor: str, *, debug: bool = False) -> int:
     """Main program to run for a given file."""
     path = os.path.realpath(path)
-    if os.path.isdir(path):
-        print_err(f"{path} is a directory")
-        return 1
-    if os.path.isfile(path) and os.access(path, os.R_OK | os.W_OK):
-        print_err(f"{path} is writable by the current user; run0edit is unnecessary.")
-        return 1
-    directory = os.path.dirname(path)
-    readonly = readonly_filesystem(path)
-    if readonly is None:
-        readonly = readonly_filesystem(directory)
-    if readonly:
-        print_err(f"{path} is on a read-only filesystem.")
+    result = validate_path(path)
+    if result is not None:
+        print_err(result)
         return 1
     temp_filename = make_temp_file(path)
     run0_args = build_run0_arguments(path, temp_filename, editor, debug=debug)
-    env = os.environb.copy()
-    env[b"SYSTEMD_ADJUST_TERMINAL_TITLE"] = b"false"
+    env = os.environ.copy()
+    env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
     process = subprocess.run(run0_args, env=env, check=False)  # nosec
     if process.returncode == 226:
         # If directory does not exist, namespace creation will fail, causing
         # run0 to fail with exit status 226:
         # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
-        print_err(f"invalid argument: directory {directory} does not exist")
+        print_err(f"No such directory {os.path.dirname(path)}")
         clean_temp_file(temp_filename)
         return 1
     if process.returncode != 0:
@@ -221,7 +259,7 @@ def main() -> int:
         if is_valid_executable(args.editor):
             editor = os.path.realpath(args.editor)
         else:
-            print_err(f"{args.editor} is not an absolute path to an executable file")
+            print_err("--editor must be an absolute path to an executable file")
             return 1
     else:
         editor = editor_path()
@@ -236,11 +274,10 @@ def main() -> int:
         try:
             exit_code = run(path, editor, debug=args.debug)
         except MissingCommandError as e:
-            print_err(f"{e.args[0]} command not found")
+            print_err(f"command `{e.args[0]}` not found")
             if args.debug:
                 raise e
-            else:
-                return 1
+            return 1
         if exit_code != 0:
             break
     return exit_code

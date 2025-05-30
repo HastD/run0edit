@@ -5,6 +5,8 @@
 - Rewrote script in Python.
 - Switched to using separate file in `/usr/libexec` for inner script.
 - Added `--editor` option to choose a different editor.
+- Fail _before_ asking for password if the unprivileged user can determine that
+  the directory does not exist.
 - Added unit tests.
 
 ## [v0.4.4] - 2025-05-22
