@@ -36,40 +36,4 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %{_libexecdir}/%{name}
 
 %changelog
-* Thu May 29 2025 - v0.5.0:
-  - Rewrote script in Python.
-  - Switched to using separate file in /usr/libexec for inner script.
-  - Added --editor option to choose a different editor.
-  - Added unit tests.
-* Thu May 22 2025 - v0.4.4:
-  - Fixed bug in immutable flag parsing.
-  - Added RPM spec.
-  - Added CI workflow to build .rpm and .deb packages.
-* Sat May 17 2025 - v0.4.3:
-  - Refactored to reduce code duplication and make control flow clearer.
-  - Separated out the main script and outer script to separate files, with a
-    Python build script to reassemble them for installation.
-  - Improved message text.
-* Thu May 15 2025 - v0.4.1:
-  - Support immutable flag on directory as well.
-* Wed May 14 2025 - v0.4.0:
-  - Added support for editing files with the immutable flag set by temporarily
-    removing the flag and reapplying it afterward.
-  - Parse arguments according to shell utility conventions, including --help
-    and --version arguments with -h and -v short forms.
-* Mon Mar 17 2025 - v0.3.3:
-  - Refactored inner script for clarity.
-  - Improved sandboxing logic.
-  - Bail out early if target file is read-only.
-  - Style fixes to pass ShellCheck linter.
-* Sun Mar 16 2025 - v0.3.1:
-  - Fixed handling of files in locations not readable by the user.
-  - Reset PATH to default value for security.
-  - Improved error messages and handling of editor selection.
-* Thu Mar 13 2025 - v0.2.0:
-  - Switched to config files instead of environment variable for text editor selection.
-  - Added systemd sandboxing to inner privileged script.
-* Mon Mar 10 2025 - v0.1.1:
-  - Improved error messages, added --help command.
-* Fri Feb 21 2025 - v0.1.0:
-  - Initial release.
+%autochangelog
