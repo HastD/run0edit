@@ -208,7 +208,8 @@ def build_run0_arguments(
 
 def print_err(message: str):
     """Print error message to stderr with text wrapping."""
-    print("\n".join(textwrap.wrap(f"run0edit: {message.strip()}")), file=sys.stderr)
+    text = textwrap.fill("run0edit: " + textwrap.dedent(message.strip("\n")), width=80)
+    print(text, file=sys.stderr)
 
 
 def validate_path(path: str) -> Union[str, None]:
