@@ -6,12 +6,11 @@ import hashlib
 import io
 import os
 import pathlib
-import shutil
-import tempfile
 import unittest
 from unittest import mock
 
 import run0edit_main as run0edit
+from . import new_test_file, remove_test_file, new_test_dir, remove_test_dir
 
 
 class TestVersionStringFormat(unittest.TestCase):
@@ -83,14 +82,14 @@ class TestIsValidExecutable(unittest.TestCase):
 
     def test_required_permissions(self):
         """Should return true only if file is readable and executable by user"""
-        file = tempfile.mkstemp()[1]
+        file = new_test_file()
         for mode in (0o000, 0o100, 0o200, 0o400, 0o600):
             os.chmod(file, mode)
             self.assertFalse(run0edit.is_valid_executable(file))
         for mode in (0o500, 0o700):
             os.chmod(file, mode)
             self.assertTrue(run0edit.is_valid_executable(file))
-        os.remove(file)
+        remove_test_file(file)
 
 
 class TestEditorPath(unittest.TestCase):
@@ -115,17 +114,15 @@ class TestEditorPath(unittest.TestCase):
     @mock.patch("run0edit_main.find_command")
     def test_read_conf_paths(self, mock_find_cmd):
         """Should read and validate editor path from conf files"""
-        conf1 = tempfile.mkstemp()[1]
-        conf2 = tempfile.mkstemp()[1]
+        conf1 = new_test_file()
+        conf2 = new_test_file(b"/bin/true\n")
         with open(conf1, "w", encoding="utf8") as f:
             f.write(conf1)
-        with open(conf2, "w", encoding="utf8") as f:
-            f.write("/bin/true\n")
         editor = run0edit.editor_path(conf_paths=(f"{conf1}-bad", conf1, conf2))
         self.assertEqual(editor, "/bin/true")
         self.assertFalse(mock_find_cmd.called)
-        os.remove(conf1)
-        os.remove(conf2)
+        remove_test_file(conf1)
+        remove_test_file(conf2)
 
     @mock.patch("run0edit_main.find_command")
     def test_default_fallbacks(self, mock_find_cmd):
@@ -147,11 +144,11 @@ class TestDirectoryDoesNotExist(unittest.TestCase):
 
     def setUp(self):
         """Set up test directory"""
-        self.test_dir = tempfile.mkdtemp()
+        self.test_dir = new_test_dir()
 
     def tearDown(self):
         """Remove test directory"""
-        shutil.rmtree(self.test_dir)
+        remove_test_dir(self.test_dir)
 
     def test_fs_root(self):
         """Should return false for filesystem root /"""
@@ -240,18 +237,13 @@ class TestCleanTempFile(unittest.TestCase):
 
     def setUp(self):
         """Set up test file"""
-        self.empty_file = tempfile.mkstemp()[1]
-        self.non_empty_file = tempfile.mkstemp()[1]
-        with open(self.non_empty_file, "wb") as f:
-            f.write(b"asdf")
+        self.empty_file = new_test_file()
+        self.non_empty_file = new_test_file(b"asdf")
 
     def tearDown(self):
         """Clean up test file"""
-        for file in (self.empty_file, self.non_empty_file):
-            try:
-                os.remove(file)
-            except FileNotFoundError:
-                pass
+        remove_test_file(self.empty_file)
+        remove_test_file(self.non_empty_file)
 
     def test_clean_unconditional(self):
         """Should remove file unconditionally by default"""
@@ -305,11 +297,11 @@ class TestSandboxPath(unittest.TestCase):
 
     def setUp(self):
         """Set up temporary directory"""
-        self.tempdir = tempfile.mkdtemp()
+        self.tempdir = new_test_dir()
 
     def tearDown(self):
         """Remove temporary directory"""
-        shutil.rmtree(self.tempdir)
+        remove_test_dir(self.tempdir)
 
     def test_path_exists(self):
         """Should not modify path to existing file without symlinks"""
@@ -362,7 +354,7 @@ class TestBuildRun0Arguments(unittest.TestCase):
     def test_args(self, mock_find_cmd):
         """Should return expected arguments"""
         mock_find_cmd.side_effect = lambda cmd: f"/usr/bin/{cmd}"
-        path = tempfile.mkstemp()[1]
+        path = new_test_file()
         temp_path = "/path/to/temp/file"
         editor = "/usr/bin/vim"
         args = run0edit.build_run0_arguments(path, temp_path, editor)
@@ -378,7 +370,7 @@ class TestBuildRun0Arguments(unittest.TestCase):
         self.assertEqual(args[-3], path)
         self.assertEqual(args[-2], temp_path)
         self.assertEqual(args[-1], editor)
-        os.remove(path)
+        remove_test_file(path)
 
     def test_read_write_paths(self, mock_find_cmd):
         """Should escape correct paths in ReadWritePaths"""
@@ -417,12 +409,11 @@ class TestValidatePath(unittest.TestCase):
 
     def setUp(self):
         """Set up test file"""
-        self.path = tempfile.mkstemp()[1]
-        os.chmod(self.path, 0o000)
+        self.path = new_test_file(mode=0o000)
 
     def tearDown(self):
         """Remove test file"""
-        os.remove(self.path)
+        remove_test_file(self.path)
 
     def test_directory(self):
         """Should fail if path is directory."""
@@ -472,12 +463,11 @@ class TestRun(unittest.TestCase):
 
     def setUp(self):
         """Set up test file"""
-        self.path = tempfile.mkstemp()[1]
-        os.chmod(self.path, 0o000)
+        self.path = new_test_file(mode=0o000)
 
     def tearDown(self):
         """Remove test file"""
-        os.remove(self.path)
+        remove_test_file(self.path)
 
     @mock.patch("run0edit_main.validate_path")
     def test_validates_path_succeeded(self, mock_validate, mock_subproc):

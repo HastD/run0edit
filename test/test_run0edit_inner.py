@@ -4,12 +4,11 @@
 
 import io
 import os
-import shutil
-import tempfile
 import unittest
 from unittest import mock
 
 import run0edit_inner as inner
+from . import new_test_file, remove_test_file
 
 
 class TestRunCommand(unittest.TestCase):
@@ -142,24 +141,18 @@ class TestCaseWithFiles(unittest.TestCase):
 
     def setUp(self):
         """Set up test files"""
-        self.filename = tempfile.mkstemp()[1]
-        self.temp_filename = tempfile.mkstemp()[1]
-        self.new_filename = f"{self.temp_filename}-new"
-        self.new_dir = os.path.dirname(self.new_filename)
         self.file_contents = b"file contents"
         self.temp_contents = b"temp contents"
-        with open(self.filename, "wb") as f:
-            f.write(self.file_contents)
-        with open(self.temp_filename, "wb") as f:
-            f.write(self.temp_contents)
+        self.filename = new_test_file(self.file_contents)
+        self.temp_filename = new_test_file(self.temp_contents)
+        self.new_filename = f"{self.temp_filename}-new"
+        self.new_dir = os.path.dirname(self.new_filename)
 
     def tearDown(self):
         """Clean up test files"""
-        for path in (self.filename, self.temp_filename, self.new_filename):
-            try:
-                os.remove(path)
-            except FileNotFoundError:
-                pass
+        remove_test_file(self.filename)
+        remove_test_file(self.temp_filename)
+        remove_test_file(self.new_filename)
 
 
 class TestCopyFileContents(TestCaseWithFiles):
@@ -402,7 +395,8 @@ class TestHandleCopyToDest(TestCaseWithFiles):
     @mock.patch("run0edit_inner.copy_to_dest")
     def test_file_unchanged(self, mock_copy_to_dest, mock_chattr, mock_stdout):
         """Should not copy if temp file has same contents as original file"""
-        shutil.copyfile(self.filename, self.temp_filename)
+        with open(self.filename, "rb") as f_file, open(self.temp_filename, "wb") as f_temp:
+            f_temp.write(f_file.read())
         inner.handle_copy_to_dest(self.filename, "dir", self.temp_filename, True, True)
         self.assertFalse(mock_copy_to_dest.called)
         self.assertFalse(mock_chattr.called)
