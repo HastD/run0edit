@@ -65,15 +65,6 @@ class TestValidateInnerScript(unittest.TestCase):
         """Should return False if pointed to a file that doesn't exist"""
         self.assertFalse(run0edit.validate_inner_script())
 
-    # def validate_inner_script() -> bool:
-    #     """Ensure inner script has expected SHA256 hash."""
-    #     try:
-    #         with open(INNER_SCRIPT_PATH, "rb") as f:
-    #             hash = hashlib.sha256(f.read())
-    #     except OSError:
-    #         return False
-    #     return hash.hexdigest() == INNER_SCRIPT_SHA256
-
 
 class TestIsValidExecutable(unittest.TestCase):
     """Tests for is_valid_executable"""
@@ -133,6 +124,8 @@ class TestEditorPath(unittest.TestCase):
         editor = run0edit.editor_path(conf_paths=(f"{conf1}-bad", conf1, conf2))
         self.assertEqual(editor, "/bin/true")
         self.assertFalse(mock_find_cmd.called)
+        os.remove(conf1)
+        os.remove(conf2)
 
     @mock.patch("run0edit_main.find_command")
     def test_default_fallbacks(self, mock_find_cmd):
