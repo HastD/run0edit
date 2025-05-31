@@ -2,12 +2,36 @@
 
 ## [Unreleased]
 
-- Rewrote script in Python.
-- Switched to using separate file in `/usr/libexec` for inner script.
-- Added `--editor` option to choose a different editor.
-- Fail _before_ asking for password if the unprivileged user can determine that
-  the directory does not exist.
-- Added unit tests.
+Rewrote script in Python.
+
+### Added
+
+- Added an `--editor` option to allow the user to choose a different text
+  editor. This must be an absolute path to an executable file, and the filename
+  will be passed as the first argument to it.
+- Allow the user to pass multiple file paths to `run0edit`, which will be edited
+  one after the other (like if you pass multiple paths to `sudoedit`).
+
+### Changed
+
+- Fail _before_ asking for a password if it can be determined that the parent
+  directory of the file path definitely does not exist or is not valid.
+- Switched to using a separate file for the inner script, which will now be
+  installed at `/usr/libexec/run0edit/run0edit_inner.py`. This path will be
+  passed to the `run0` invocation rather than embedding the entire inner script
+  contents in an argument to `run0`. As an extra check, the SHA-256 hash of this
+  file is compared against the expected value.
+- Only use `/etc/run0edit/editor.conf` as a configuration file, as the secondary
+  configuration path at `/usr/etc/run0edit/editor.conf` was pretty much
+  redundant.
+- Minor changes to the wording of error messages and the `--help` text.
+
+### Testing and CI
+
+- Added unit tests with 100% test coverage.
+- Added GitHub workflows that automatically run Ruff, PyLint (for all Python
+  versions 3.9 through 3.13), Bandit, the unit tests, and a unit test coverage
+  check on every pushed commit.
 
 ## [v0.4.4] - 2025-05-22
 

@@ -21,6 +21,7 @@ limitations under the License.
 """
 
 import argparse
+import hashlib
 import os
 import pathlib
 import shutil
@@ -34,6 +35,17 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
+INNER_SCRIPT_SHA256: Final[str] = "3763c98ec35fff614488f23a79c4475597af384167d1fc3d823e6707e8d9c600"
+
+
+def validate_inner_script() -> bool:
+    """Ensure inner script has expected SHA256 hash."""
+    try:
+        with open(INNER_SCRIPT_PATH, "rb") as f:
+            file_hash = hashlib.sha256(f.read())
+    except OSError:
+        return False
+    return file_hash.hexdigest() == INNER_SCRIPT_SHA256
 
 
 def readonly_filesystem(path: str) -> Union[bool, None]:
@@ -255,6 +267,12 @@ def main() -> int:
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
     args = parser.parse_args()
+    if not validate_inner_script():
+        print_err(f"""
+            Inner script was not found at {INNER_SCRIPT_PATH} or did not have
+            expected SHA-256 hash.
+        """)
+        return 1
     if args.editor is not None:
         if is_valid_executable(args.editor):
             editor = os.path.realpath(args.editor)

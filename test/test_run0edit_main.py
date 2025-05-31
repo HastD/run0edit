@@ -2,6 +2,7 @@
 
 """Unit tests for run0edit_main.py"""
 
+import hashlib
 import io
 import os
 import pathlib
@@ -27,6 +28,51 @@ class TestInnerScriptPath(unittest.TestCase):
     def test_inner_script_path(self):
         """Should have expected value"""
         self.assertEqual(run0edit.INNER_SCRIPT_PATH, "/usr/libexec/run0edit/run0edit_inner.py")
+
+
+class TestInnerScriptSha256(unittest.TestCase):
+    """Test constant INNER_SCRIPT_SHA256"""
+
+    def test_inner_script_sha256(self):
+        """Inner script should have expected SHA-256 hash"""
+        with open("run0edit_inner.py", "rb") as f:
+            file_hash = hashlib.sha256(f.read())
+        self.assertEqual(file_hash.hexdigest(), run0edit.INNER_SCRIPT_SHA256)
+
+
+class TestValidateInnerScript(unittest.TestCase):
+    """Tests for validate_inner_script"""
+
+    @mock.patch("run0edit_main.open", create=True)
+    def test_check_args(self, mock_open):
+        """Should read from expected path"""
+        with self.assertRaisesRegex(TypeError, "object supporting the buffer API required"):
+            run0edit.validate_inner_script()
+        self.assertEqual(mock_open.call_args.args, (run0edit.INNER_SCRIPT_PATH, "rb"))
+
+    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_inner.py")
+    def test_valid_inner_script(self):
+        """Should return True when computing hash of inner script file"""
+        self.assertTrue(run0edit.validate_inner_script())
+
+    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_main.py")
+    def test_invalid_inner_script(self):
+        """Should return False if pointed to a file with wrong contents"""
+        self.assertFalse(run0edit.validate_inner_script())
+
+    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "/no/such/file/exists")
+    def test_missing_inner_script(self):
+        """Should return False if pointed to a file that doesn't exist"""
+        self.assertFalse(run0edit.validate_inner_script())
+
+    # def validate_inner_script() -> bool:
+    #     """Ensure inner script has expected SHA256 hash."""
+    #     try:
+    #         with open(INNER_SCRIPT_PATH, "rb") as f:
+    #             hash = hashlib.sha256(f.read())
+    #     except OSError:
+    #         return False
+    #     return hash.hexdigest() == INNER_SCRIPT_SHA256
 
 
 class TestIsValidExecutable(unittest.TestCase):
@@ -600,7 +646,33 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stderr.getvalue(), "")
         self.assertFalse(mock_run.called)
 
+    @mock.patch("sys.argv", ["run0edit", "--editor=/bin/true", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script")
+    def test_valid_inner_script(self, mock_validate, mock_run, mock_stdout, mock_stderr):
+        """Should continue to rest of function if validate_inner_script succeeds"""
+        mock_validate.return_value = True
+        run0edit.main()
+        self.assertTrue(mock_validate.called)
+        self.assertTrue(mock_run.called)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script")
+    def test_invalid_inner_script(self, mock_validate, mock_run, mock_stdout, mock_stderr):
+        """Should fail with expected error if validate_inner_script fails"""
+        mock_validate.return_value = False
+        self.assertEqual(run0edit.main(), 1)
+        self.assertTrue(mock_validate.called)
+        self.assertFalse(mock_run.called)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertRegex(
+            mock_stderr.getvalue().replace("\n", " "),
+            "^run0edit: Inner script was not found .* or did not have expected SHA-256 hash",
+        )
+
     @mock.patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     @mock.patch("run0edit_main.is_valid_executable")
     def test_valid_editor(
@@ -617,6 +689,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.argv", ["run0edit", "--editor=/etc/hosts", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     @mock.patch("run0edit_main.is_valid_executable")
     def test_invalid_editor(
@@ -636,6 +709,7 @@ class TestMain(unittest.TestCase):
         )
 
     @mock.patch("sys.argv", ["run0edit", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     def test_editor_not_found(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should fail with expected message if unable to find editor"""
@@ -646,6 +720,7 @@ class TestMain(unittest.TestCase):
         self.assertRegex(mock_stderr.getvalue(), r"^run0edit: Editor not found\.")
 
     @mock.patch("sys.argv", ["run0edit", "path1", "path2"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     def test_successful_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should pass expected arguments to run and exit successfully"""
@@ -662,6 +737,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.argv", ["run0edit", "path1", "path2", "path3"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     def test_failed_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return as soon as a run returns nonzero"""
@@ -675,6 +751,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.argv", ["run0edit", "example/path"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     def test_missing_command(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return 1 if command missing"""
@@ -687,6 +764,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stderr.getvalue(), "run0edit: command `foo` not found\n")
 
     @mock.patch("sys.argv", ["run0edit", "--debug", "example/path"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.editor_path")
     def test_missing_command_debug(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """
