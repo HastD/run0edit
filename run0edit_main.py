@@ -242,7 +242,8 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
     temp_filename = make_temp_file(path)
     run0_args = build_run0_arguments(path, temp_filename, editor, debug=debug)
     env = os.environ.copy()
-    env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
+    if os.geteuid() == 0:
+        env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
     process = subprocess.run(run0_args, env=env, check=False)  # nosec
     if process.returncode == 226:
         # If directory does not exist, namespace creation will fail, causing

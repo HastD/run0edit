@@ -500,8 +500,10 @@ class TestRun(unittest.TestCase):
         self.assertEqual(os.path.getsize(temp_filename), 0)
         os.remove(temp_filename)
 
-    def test_check_args(self, mock_subproc):
+    @mock.patch("os.geteuid")
+    def test_check_args(self, mock_geteuid, mock_subproc):
         """Should pass expected arguments to subprocess.run"""
+        mock_geteuid.return_value = 1
         editor = "/usr/sbin/butterfly"
         run0edit.run(self.path, editor)
         (args,) = mock_subproc.call_args.args
@@ -510,7 +512,17 @@ class TestRun(unittest.TestCase):
         self.assertEqual(args, expected_args)
         kwargs = mock_subproc.call_args.kwargs
         self.assertEqual(kwargs, {"env": mock.ANY, "check": False})
-        self.assertEqual(kwargs["env"]["SYSTEMD_ADJUST_TERMINAL_TITLE"], "false")
+        false_bool_strings = ("0", "no", "n", "false", "f", "off")
+        self.assertNotIn(kwargs["env"].get("SYSTEMD_ADJUST_TERMINAL_TITLE"), false_bool_strings)
+
+    @mock.patch("os.geteuid")
+    def test_adjust_terminal_title(self, mock_geteuid, mock_subproc):
+        """Should not adjust terminal title if run as root"""
+        mock_geteuid.return_value = 0
+        editor = "/usr/sbin/butterfly"
+        run0edit.run(self.path, editor)
+        env = mock_subproc.call_args.kwargs["env"]
+        self.assertEqual(env.get("SYSTEMD_ADJUST_TERMINAL_TITLE"), "false")
 
     @staticmethod
     def mock_editor_process(args, **_) -> int:
