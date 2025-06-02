@@ -120,16 +120,19 @@ def directory_does_not_exist(path: str) -> Union[bool, None]:
     return None
 
 
-def make_temp_file(path: str) -> str:
-    """Create a temporary file with a random suffix appended to the filename."""
-    name = os.path.basename(path)
-    return tempfile.mkstemp(prefix=f"{name:.64}.")[1]
+class TempFile:
+    """A temporary file."""
+    def __init__(self, filename: str):
+        """Create a temporary file with a random suffix appended to the given filename."""
+        self.directory = tempfile.mkdtemp(prefix="run0edit-")
+        name = os.path.basename(filename)
+        self.path = tempfile.mkstemp(prefix=f"{name:.64}.", dir=self.directory)[1]
 
-
-def clean_temp_file(path: str, *, only_if_empty: bool = False):
-    """Remove the temporary file (optionally only if empty)."""
-    if not only_if_empty or os.path.getsize(path) == 0:
-        os.remove(path)
+    def remove(self, *, only_if_empty: bool = False):
+        """Delete the temporary file"""
+        if not only_if_empty or os.path.getsize(self.path) == 0:
+            os.remove(self.path)
+            os.rmdir(self.directory)
 
 
 def escape_path(path: str) -> str:
@@ -172,7 +175,7 @@ def sandbox_path(path: str) -> str:
         rw_path = path
     else:
         rw_path = os.path.dirname(path)
-    return os.path.realpath(rw_path)
+    return rw_path
 
 
 class MissingCommandError(Exception):
@@ -239,8 +242,8 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
     if result is not None:
         print_err(result)
         return 1
-    temp_filename = make_temp_file(path)
-    run0_args = build_run0_arguments(path, temp_filename, editor, debug=debug)
+    temp_file = TempFile(path)
+    run0_args = build_run0_arguments(path, temp_file.path, editor, debug=debug)
     env = os.environ.copy()
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
@@ -250,12 +253,12 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
         # run0 to fail with exit status 226:
         # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
         print_err(f"No such directory {os.path.dirname(path)}")
-        clean_temp_file(temp_filename)
+        temp_file.remove()
         return 1
     if process.returncode != 0:
-        clean_temp_file(temp_filename, only_if_empty=True)
+        temp_file.remove(only_if_empty=True)
         return process.returncode
-    clean_temp_file(temp_filename)
+    temp_file.remove()
     return 0
 
 
