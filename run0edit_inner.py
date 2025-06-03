@@ -4,8 +4,8 @@
 
 import filecmp
 import os
-import pathlib
 import resource
+import stat
 import shutil
 import subprocess  # nosec
 import sys
@@ -95,6 +95,28 @@ def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str
     return None
 
 
+def check_file_exists(path: str) -> bool:
+    """
+    Test whether a file exists at the given path. Raises exception if path is a
+    directory or parent of path is not a directory.
+    """
+    parent = os.path.dirname(path)
+    try:
+        stat_result = os.lstat(path)
+    except FileNotFoundError as e:
+        if not os.path.lexists(parent):
+            print("run0edit: invalid argument: directory does not exist")
+            raise NoDirectoryError(f"{parent} does not exist") from e
+        return False
+    except NotADirectoryError as e:
+        print("run0edit: invalid argument: directory does not exist")
+        raise NoDirectoryError(f"{parent} is not a directory") from e
+    if not stat.S_ISREG(stat_result.st_mode):
+        print("run0edit: invalid argument: not a regular file")
+        raise NotRegularFileError(f"{path} is not a regular file")
+    return True
+
+
 def is_immutable(path: str) -> bool:
     """Determine if the file or directory at the path has the immutable attribute."""
     try:
@@ -104,10 +126,10 @@ def is_immutable(path: str) -> bool:
     return result is not None and "i" in result.strip().split()[0]
 
 
-def ask_immutable(path: str) -> bool:
+def ask_immutable(path: str, is_dir: bool) -> bool:
     """Ask the user whether to temporarily remove the immutable attribute."""
     print(f"{path} has the immutable attribute.")
-    if os.path.isdir(path):
+    if is_dir:
         prompt = "Temporarily remove attribute to create a file in the directory? [y/N] "
     else:
         prompt = "Temporarily remove the attribute to edit the file? [y/N] "
@@ -115,28 +137,58 @@ def ask_immutable(path: str) -> bool:
     return response.lower().startswith("y")
 
 
-def handle_readonly(path: str, *, prompt: bool = True):
+def check_readonly(
+    path: str,
+    is_dir: bool,
+    *,
+    prompt_immutable: bool = True,
+) -> bool:
     """
-    Raise appropriate errors if the path points to a read-only filesystem, has
-    the immutable attribute, or is otherwise read-only.
+    Ensure the path exists and is readable and writable. Return whether the
+    file or directory at the path has immutable attribute to be manipulated.
+    Raise appropriate errors if read-only and editing should be cancelled.
     """
+    if os.access(path, os.R_OK | os.W_OK, follow_symlinks=False):
+        return False
     if readonly_filesystem(path):
         raise ReadOnlyFilesystemError
     if is_immutable(path):
-        if prompt and not ask_immutable(path):
+        if prompt_immutable and not ask_immutable(path, is_dir):
             raise ReadOnlyImmutableError
     else:
         raise ReadOnlyOtherError
+    return True
 
 
-def copy_file_contents(src: str, dest: str):
-    """Copy contents of src to dest. Does not copy metadata."""
+def handle_check_readonly(path: str, is_dir: bool, *, prompt_immutable: bool = True) -> bool:
+    """Call check_readonly, handling errors."""
+    try:
+        return check_readonly(path, is_dir=is_dir, prompt_immutable=prompt_immutable)
+    except ReadOnlyFilesystemError as e:
+        print(f"run0edit: {path} is on a read-only filesystem.")
+        raise e
+    except ReadOnlyImmutableError as e:
+        print("run0edit: user declined to remove immutable attribute; exiting.")
+        raise e
+    except ReadOnlyOtherError as e:
+        print(f"run0edit: {path} is read-only.")
+        raise e
+
+
+def copy_file_contents(src: str, dest: str, *, create: bool):
+    """
+    Copy contents of src to dest. Does not copy metadata. `create` argument
+    specifies whether dest *must* be newly created or *must not* be created.
+    """
+    flags = os.O_NOFOLLOW | os.O_TRUNC | os.O_WRONLY
+    if create:
+        flags |= os.O_CREAT | os.O_EXCL
     try:
         buffer_size = resource.getpagesize()
-        # Manually setting the flags is necessary because we need to ensure
-        # O_CREAT is not set, otherwise the sticky bit on /tmp prevents us from
-        # writing to a file we don't own (even as root).
-        fd_dest = os.open(dest, os.O_WRONLY | os.O_TRUNC)
+        # Manually setting the flags is necessary because we need to be able to
+        # ensure O_CREAT is not set, otherwise the sticky bit on /tmp prevents
+        # us from writing to a file we don't own (even as root).
+        fd_dest = os.open(dest, flags, mode=0o644)
         with open(src, "rb") as f_src, os.fdopen(fd_dest, "wb") as f_dest:
             while True:
                 buffer = f_src.read(buffer_size)
@@ -147,37 +199,6 @@ def copy_file_contents(src: str, dest: str):
         raise FileCopyError from e
 
 
-def copy_to_temp(
-    file_exists: bool,
-    filename: str,
-    directory: str,
-    temp_filename: str,
-    *,
-    prompt_immutable: bool = True,
-) -> bool:
-    """
-    If the file exists, ensure it is a regular file and writable, then
-    attempt to copy it to the temp file.
-    If the file does not exist, ensure the directory exists and is writable.
-    Return whether an immutable attribute should be manipulated.
-    """
-    immutable = False
-    if file_exists:
-        if not os.path.isfile(filename):
-            raise NotRegularFileError
-        if not os.access(filename, os.R_OK | os.W_OK):
-            handle_readonly(filename, prompt=prompt_immutable)
-            immutable = True
-        copy_file_contents(filename, temp_filename)
-    else:
-        if not os.path.isdir(directory):
-            raise NoDirectoryError
-        if not os.access(directory, os.R_OK | os.W_OK):
-            handle_readonly(directory, prompt=prompt_immutable)
-            immutable = True
-    return immutable
-
-
 def run_chattr(attribute: str, path: str):
     """Run chattr to apply attribute to path (if not None). Raises ChattrError if fails."""
     try:
@@ -186,20 +207,19 @@ def run_chattr(attribute: str, path: str):
         raise ChattrError from e
 
 
-def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None]):
+def copy_to_dest(filename: str, temp_filename: str, *, file_exists: bool, immutable: bool):
     """
     Copy the contents of the temp file to the target file, manipulating the
     immutable attribute on chattr_path if provided.
     """
-    if chattr_path is None:
-        pathlib.Path(filename).touch()
-        copy_file_contents(temp_filename, filename)
+    if not immutable:
+        copy_file_contents(temp_filename, filename, create=not file_exists)
         return
 
+    chattr_path = filename if file_exists else os.path.dirname(filename)
     run_chattr("-i", chattr_path)
     try:
-        pathlib.Path(filename).touch()
-        copy_file_contents(temp_filename, filename)
+        copy_file_contents(temp_filename, filename, create=not file_exists)
     finally:
         run_chattr("+i", chattr_path)
         print("Immutable attribute reapplied.")
@@ -211,46 +231,7 @@ def copy_to_dest(filename: str, temp_filename: str, chattr_path: Union[str, None
         raise FileContentsMismatchError from e
 
 
-def handle_copy_to_temp(
-    filename: str,
-    directory: str,
-    temp_file: str,
-    file_exists: bool,
-    *,
-    prompt_immutable: bool = True,
-) -> bool:
-    """
-    Copy to temp file, handling errors.
-    Returns if immutable attribute should be manipulated in later step.
-    """
-    base_path = filename if file_exists else directory
-    try:
-        return copy_to_temp(
-            file_exists, filename, directory, temp_file, prompt_immutable=prompt_immutable
-        )
-    except NotRegularFileError as e:
-        print("run0edit: invalid argument: not a regular file")
-        raise e
-    except NoDirectoryError as e:
-        print("run0edit: invalid argument: directory does not exist")
-        raise e
-    except FileCopyError as e:
-        print(f"run0edit: failed to copy {filename} to temporary file at {temp_file}")
-        raise e
-    except ReadOnlyFilesystemError as e:
-        print(f"run0edit: {base_path} is on a read-only filesystem.")
-        raise e
-    except ReadOnlyImmutableError as e:
-        print("run0edit: user declined to remove immutable attribute; exiting.")
-        raise e
-    except ReadOnlyOtherError as e:
-        print(f"run0edit: {base_path} is read-only.")
-        raise e
-
-
-def handle_copy_to_dest(
-    filename: str, directory: str, temp_file: str, file_exists: bool, immutable: bool
-):
+def handle_copy_to_dest(filename: str, temp_file: str, *, file_exists: bool, immutable: bool):
     """
     If the target file exists and has been modified in the temp file, or
     if this is a new file that is non-empty, copy temp file to target.
@@ -264,12 +245,12 @@ def handle_copy_to_dest(
             return
     else:
         if os.path.getsize(temp_file) > 0:
-            chattr_path = directory if immutable else None
+            chattr_path = os.path.dirname(filename) if immutable else None
         else:
             print(f"run0edit: {filename} not created")
             return
     try:
-        copy_to_dest(filename, temp_file, chattr_path)
+        copy_to_dest(filename, temp_file, file_exists=file_exists, immutable=immutable)
     except FileCopyError as e:
         print(f"run0edit: unable to copy contents of temporary file at {temp_file} to {filename}")
         raise e
@@ -300,20 +281,28 @@ def run(filename: str, temp_file: str, editor: str, uid: int, *, prompt_immutabl
     Copy file to temp file, run editor, and copy temp file back to target file.
     Raises Run0editError if a step fails.
     """
-    file_exists = os.path.exists(filename)
-    directory = os.path.dirname(filename)
+    filename = os.path.realpath(filename)
+    file_exists = check_file_exists(filename)
     try:
-        immutable = handle_copy_to_temp(
-            filename, directory, temp_file, file_exists, prompt_immutable=prompt_immutable
+        base_path = filename if file_exists else os.path.dirname(filename)
+        immutable = handle_check_readonly(
+            base_path, is_dir=not file_exists, prompt_immutable=prompt_immutable
         )
     except ReadOnlyImmutableError:
         # User declined to remove immutable attribute; exit normally.
         return
 
+    if file_exists:
+        try:
+            copy_file_contents(filename, temp_file, create=False)
+        except FileCopyError as e:
+            print(f"run0edit: failed to copy {filename} to temporary file at {temp_file}")
+            raise e
+
     # Attempt to edit the temp file as the original user.
     run_editor(uid=uid, editor=editor, path=temp_file)
 
-    handle_copy_to_dest(filename, directory, temp_file, file_exists, immutable)
+    handle_copy_to_dest(filename, temp_file, file_exists=file_exists, immutable=immutable)
 
 
 def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:

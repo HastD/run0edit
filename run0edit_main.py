@@ -35,7 +35,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "3763c98ec35fff614488f23a79c4475597af384167d1fc3d823e6707e8d9c600"
+INNER_SCRIPT_SHA256: Final[str] = "eb8fbb83b0f8751074896177f8c8a2a6118777cf8a87c86a1f60abcf1c055a0a"
 
 
 def validate_inner_script() -> bool:
@@ -65,7 +65,7 @@ def find_command(command: str) -> Union[str, None]:
 
 def is_valid_executable(path: str) -> bool:
     """Test if path is an absolute path to an executable"""
-    is_rx = os.F_OK | os.R_OK | os.X_OK
+    is_rx = os.R_OK | os.X_OK
     return os.path.isabs(path) and os.path.isfile(path) and os.access(path, is_rx)
 
 
@@ -122,6 +122,7 @@ def directory_does_not_exist(path: str) -> Union[bool, None]:
 
 class TempFile:
     """A temporary file."""
+
     def __init__(self, filename: str):
         """Create a temporary file with a random suffix appended to the given filename."""
         self.directory = tempfile.mkdtemp(prefix="run0edit-")

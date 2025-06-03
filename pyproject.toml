@@ -13,5 +13,8 @@ license-files = "LICENSE"
 Repository = "https://github.com/HastD/run0edit"
 Issues = "https://github.com/HastD/run0edit/issues"
 
+[tool.pylint."MESSAGES CONTROL"]
+disable = "too-few-public-methods"
+
 [tool.ruff]
 line-length = 100

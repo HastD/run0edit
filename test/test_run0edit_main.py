@@ -209,55 +209,66 @@ class TestDirectoryDoesNotExist(unittest.TestCase):
         os.chmod(self.test_dir, 0o700)
 
 
-class TestMakeTempFile(unittest.TestCase):
-    """Tests for make_temp_file"""
+class TestTempFile(unittest.TestCase):
+    """Tests for TempFile class"""
 
-    def test_make_temp_file(self):
-        """Should create temp file with name derived from given path"""
+    def test_temp_file(self):
+        """
+        Should create temp file with name derived from given path, and remove
+        it when .remove() is called.
+        """
         filename = "spam.txt"
         path = f"/foo/bar/{filename}"
-        temp = run0edit.make_temp_file(path)
-        temp_filename = os.path.basename(temp)
+        temp = run0edit.TempFile(path)
+        temp_dir = os.path.dirname(temp.path)
+        self.assertTrue(os.path.basename(temp_dir).startswith("run0edit"))
+        temp_filename = os.path.basename(temp.path)
         self.assertTrue(temp_filename.startswith(filename))
         self.assertGreaterEqual(len(temp_filename.removeprefix(filename)), 8)
-        self.assertTrue(os.path.isfile(temp))
-        self.assertEqual(os.path.getsize(temp), 0)
-        os.remove(temp)
+        self.assertTrue(os.path.isfile(temp.path))
+        self.assertEqual(os.path.getsize(temp.path), 0)
+        temp.remove()
+        self.assertFalse(os.path.exists(temp_dir))
 
     def test_long_filename(self):
         """Should truncate long filenames"""
         filename = "long" * 100
-        temp = run0edit.make_temp_file(filename)
-        self.assertLess(len(os.path.basename(temp)), 100)
-        os.remove(temp)
+        temp = run0edit.TempFile(filename)
+        self.assertLess(len(os.path.basename(temp.path)), 100)
+        temp.remove()
 
 
 class TestCleanTempFile(unittest.TestCase):
     """Tests for clean_temp_file"""
 
     def setUp(self):
-        """Set up test file"""
-        self.empty_file = new_test_file()
-        self.non_empty_file = new_test_file(b"asdf")
+        """Set up temp files"""
+        self.empty_file = run0edit.TempFile("empty")
+        self.non_empty_file = run0edit.TempFile("non-empty")
+        with open(self.non_empty_file.path, "wb") as f:
+            f.write(b"asdf")
 
     def tearDown(self):
-        """Clean up test file"""
-        remove_test_file(self.empty_file)
-        remove_test_file(self.non_empty_file)
+        """Clean up temp files"""
+        for temp_file in (self.empty_file, self.non_empty_file):
+            try:
+                temp_file.remove()
+            except OSError:
+                pass
 
     def test_clean_unconditional(self):
-        """Should remove file unconditionally by default"""
-        run0edit.clean_temp_file(self.empty_file)
-        self.assertFalse(os.path.exists(self.empty_file))
-        run0edit.clean_temp_file(self.non_empty_file)
-        self.assertFalse(os.path.exists(self.non_empty_file))
+        """Should remove temp file unconditionally by default"""
+        self.empty_file.remove()
+        self.assertFalse(os.path.exists(self.empty_file.path))
+        self.non_empty_file.remove()
+        self.assertFalse(os.path.exists(self.non_empty_file.path))
 
     def test_clean_only_if_empty(self):
-        """Should only remove empty files with option passed"""
-        run0edit.clean_temp_file(self.empty_file, only_if_empty=True)
-        self.assertFalse(os.path.exists(self.empty_file))
-        run0edit.clean_temp_file(self.non_empty_file, only_if_empty=True)
-        self.assertTrue(os.path.exists(self.non_empty_file))
+        """Should only remove empty temp files with option passed"""
+        self.empty_file.remove(only_if_empty=True)
+        self.assertFalse(os.path.exists(self.empty_file.path))
+        self.non_empty_file.remove(only_if_empty=True)
+        self.assertTrue(os.path.exists(self.non_empty_file.path))
 
 
 class TestEscapePath(unittest.TestCase):
@@ -315,24 +326,24 @@ class TestSandboxPath(unittest.TestCase):
         self.assertEqual(run0edit.sandbox_path(path), self.tempdir)
 
     def test_symlink_file(self):
-        """Should follow symlink and give real path"""
+        """Should not follow symlink to file"""
         file_path = f"{self.tempdir}/foo"
         symlink_path = f"{self.tempdir}/bar"
         pathlib.Path(file_path).touch()
         os.symlink(file_path, symlink_path)
-        self.assertEqual(run0edit.sandbox_path(symlink_path), file_path)
+        self.assertEqual(run0edit.sandbox_path(symlink_path), symlink_path)
 
     def test_symlink_dir(self):
-        """Should resolve directory symlinks"""
+        """Should not try to resolve directory symlinks"""
         dir_path = f"{self.tempdir}/foo"
         symlink = f"{self.tempdir}/bar"
         os.mkdir(dir_path)
         os.symlink(dir_path, symlink)
         file_path = f"{dir_path}/file.txt"
         symlinked_file_path = f"{symlink}/file.txt"
-        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), dir_path)
+        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlink)
         pathlib.Path(file_path).touch()
-        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), file_path)
+        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlinked_file_path)
 
 
 @mock.patch("run0edit_main.find_command")
