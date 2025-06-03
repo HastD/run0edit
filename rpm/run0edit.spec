@@ -10,7 +10,7 @@ Source:         %{name}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRequires:  python3 >= 3.9
 Requires:       python3 >= 3.9
-Requires:       systemd >= 248
+Requires:       systemd >= 256
 
 %description
 %{name} is to run0 what sudoedit is to sudo.
