@@ -27,7 +27,7 @@ copied back to the original location when the editor is closed.
 %build
 
 %install
-mkdir -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/%{name} %{buildroot}%{_sysconfdir}/%{name}
+mkdir -m 755 -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/%{name} %{buildroot}%{_sysconfdir}/%{name}
 install -m 755 %{name}_main.py %{buildroot}%{_bindir}/%{name}
 install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner.py
 
@@ -36,4 +36,9 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %{_libexecdir}/%{name}
 
 %changelog
-%autochangelog
+* Thu Jun 19 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
+  - Update to version 0.5.0
+  - Python rewrite: install Python scripts in place of old shell script
+  - Fix systemd and Python version requirements
+* Thu May 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.4.4
+  - Initial RPM release
