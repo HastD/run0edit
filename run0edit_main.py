@@ -135,7 +135,7 @@ class InvalidEditorError(Exception):
     """Provided editor path is invalid."""
 
 
-def get_editor_path(provided_editor: str | None = None) -> str:
+def get_editor_path(provided_editor: Union[str, None] = None) -> str:
     """Get the editor path from either a provided path or conf file."""
     if provided_editor is None:
         return get_editor_path_from_conf()

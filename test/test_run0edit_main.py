@@ -396,11 +396,13 @@ class TestSandboxPath(unittest.TestCase):
         self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlinked_file_path)
 
 
+@mock.patch("run0edit_main.find_command")
 class TestRun0Arguments(unittest.TestCase):
     """Tests for Run0Arguments class"""
 
-    def test_argument_list(self):
+    def test_argument_list(self, mock_find_cmd):
         """Should build expected argument list"""
+        mock_find_cmd.side_effect = lambda cmd: f"/usr/bin/{cmd}"
         run0_args = run0edit.Run0Arguments(
             description="Description of program",
             systemd_properties=["foo", "bar"],
@@ -419,6 +421,7 @@ class TestRun0Arguments(unittest.TestCase):
             "spam spam spam",
         ]
         self.assertEqual(run0_args.argument_list(), expected_args)
+        self.assertEqual(mock_find_cmd.call_args, (("run0",), {}))
 
 
 @mock.patch("run0edit_main.find_command")
