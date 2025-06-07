@@ -1,6 +1,46 @@
 #!/usr/bin/env python3
 
-"""Inner script for run0edit. Not meant to be run directly."""
+"""
+Inner script for run0edit. Not meant to be run directly.
+
+Please report issues at: https://github.com/HastD/run0edit/issues
+
+Copyright (C) 2025 Daniel Hast
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+-----
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the “Software”), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-----
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 import filecmp
 import os
@@ -16,6 +56,10 @@ from typing import Union
 
 class Run0editError(Exception):
     """Base class for run0edit errors."""
+
+
+class CommandNotFoundError(Run0editError):
+    """An external command was not found."""
 
 
 class NotRegularFileError(Run0editError):
@@ -46,10 +90,6 @@ class FileCopyError(Run0editError):
     """Failed to copy to the target file."""
 
 
-class CommandNotFoundError(Run0editError):
-    """An external command was not found."""
-
-
 class SubprocessError(Run0editError):
     """An external command failed."""
 
@@ -71,22 +111,21 @@ def readonly_filesystem(path: str) -> Union[bool, None]:
         return None
 
 
-def find_command(command: str) -> Union[str, None]:
+def find_command(command: str) -> str:
     """Search for command using a default path."""
     # pylint: disable=duplicate-code
-    return shutil.which(command, path=os.defpath)
+    cmd_path = shutil.which(command, path="/usr/bin:/bin")
+    if cmd_path is None:
+        raise CommandNotFoundError(command)
+    return cmd_path
 
 
 def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str, None]:
     """Run command as subprocess."""
-    cmd_path = find_command(cmd)
-    if cmd_path is None:
-        raise CommandNotFoundError(f"Command {cmd} not found")
-    run_args = [cmd_path] + list(args)
-    text = True if capture_output else None
+    run_args = [find_command(cmd)] + list(args)
     try:
         result = subprocess.run(
-            run_args, check=True, shell=False, capture_output=capture_output, text=text
+            run_args, check=True, shell=False, capture_output=capture_output, text=capture_output
         )  # nosec
     except subprocess.CalledProcessError as e:
         raise SubprocessError from e
@@ -126,7 +165,7 @@ def is_immutable(path: str) -> bool:
     return result is not None and "i" in result.strip().split()[0]
 
 
-def ask_immutable(path: str, is_dir: bool) -> bool:
+def should_remove_immutable(path: str, is_dir: bool) -> bool:
     """Ask the user whether to temporarily remove the immutable attribute."""
     print(f"{path} has the immutable attribute.")
     if is_dir:
@@ -153,7 +192,7 @@ def check_readonly(
     if readonly_filesystem(path):
         raise ReadOnlyFilesystemError
     if is_immutable(path):
-        if prompt_immutable and not ask_immutable(path, is_dir):
+        if prompt_immutable and not should_remove_immutable(path, is_dir):
             raise ReadOnlyImmutableError
     else:
         raise ReadOnlyOtherError
@@ -186,8 +225,8 @@ def copy_file_contents(src: str, dest: str, *, create: bool):
     try:
         buffer_size = resource.getpagesize()
         # Manually setting the flags is necessary because we need to be able to
-        # ensure O_CREAT is not set, otherwise the sticky bit on /tmp prevents
-        # us from writing to a file we don't own (even as root).
+        # control whether O_CREAT is set, otherwise the sticky bit on /tmp
+        # prevents us from writing to a file we don't own (even as root).
         fd_dest = os.open(dest, flags, mode=0o644)
         with open(src, "rb") as f_src, os.fdopen(fd_dest, "wb") as f_dest:
             while True:
@@ -207,59 +246,80 @@ def run_chattr(attribute: str, path: str):
         raise ChattrError from e
 
 
-def copy_to_dest(filename: str, temp_filename: str, *, file_exists: bool, immutable: bool):
+def copy_to_immutable_original(original_file: str, temp_file: str, *, original_file_exists: bool):
     """
-    Copy the contents of the temp file to the target file, manipulating the
-    immutable attribute on chattr_path if provided.
+    Copy the contents of the temp file to the target file, manipulating the immutable attribute.
     """
-    if not immutable:
-        copy_file_contents(temp_filename, filename, create=not file_exists)
-        return
-
-    chattr_path = filename if file_exists else os.path.dirname(filename)
+    chattr_path = original_file if original_file_exists else os.path.dirname(original_file)
     run_chattr("-i", chattr_path)
     try:
-        copy_file_contents(temp_filename, filename, create=not file_exists)
+        copy_file_contents(temp_file, original_file, create=not original_file_exists)
     finally:
         run_chattr("+i", chattr_path)
         print("Immutable attribute reapplied.")
     filecmp.clear_cache()
     try:
-        if not filecmp.cmp(temp_filename, filename, shallow=False):
+        if not filecmp.cmp(temp_file, original_file, shallow=False):
             raise FileContentsMismatchError
     except OSError as e:
         raise FileContentsMismatchError from e
 
 
-def handle_copy_to_dest(filename: str, temp_file: str, *, file_exists: bool, immutable: bool):
+def copy_to_original(
+    original_file: str, temp_file: str, *, original_file_exists: bool, immutable: bool
+):
+    """
+    Copy the contents of the temp file to the target file, manipulating the
+    immutable attribute if necessary.
+    """
+    if immutable:
+        copy_to_immutable_original(
+            original_file, temp_file, original_file_exists=original_file_exists
+        )
+    else:
+        copy_file_contents(temp_file, original_file, create=not original_file_exists)
+
+
+def should_copy_to_original(
+    original_file: str, temp_file: str, *, original_file_exists: bool
+) -> bool:
+    """Determine if the temp file needs to be copied to the original file."""
+    if original_file_exists:
+        should_copy = not filecmp.cmp(temp_file, original_file, shallow=False)
+    else:
+        should_copy = os.path.getsize(temp_file) > 0
+    return should_copy
+
+
+def handle_copy_to_original(
+    original_file: str, temp_file: str, *, original_file_exists: bool, immutable: bool
+):
     """
     If the target file exists and has been modified in the temp file, or
     if this is a new file that is non-empty, copy temp file to target.
     Handle errors or manipulate immutable attribute if needed.
     """
-    if file_exists:
-        if not filecmp.cmp(temp_file, filename, shallow=False):
-            chattr_path = filename if immutable else None
-        else:
-            print(f"run0edit: {filename} unchanged")
-            return
-    else:
-        if os.path.getsize(temp_file) > 0:
-            chattr_path = os.path.dirname(filename) if immutable else None
-        else:
-            print(f"run0edit: {filename} not created")
-            return
+    if not should_copy_to_original(
+        original_file, temp_file, original_file_exists=original_file_exists
+    ):
+        print(f"run0edit: {original_file} {'unchanged' if original_file_exists else 'not created'}")
+        return
     try:
-        copy_to_dest(filename, temp_file, file_exists=file_exists, immutable=immutable)
+        copy_to_original(
+            original_file, temp_file, original_file_exists=original_file_exists, immutable=immutable
+        )
     except FileCopyError as e:
-        print(f"run0edit: unable to copy contents of temporary file at {temp_file} to {filename}")
+        print(
+            f"run0edit: unable to copy contents of temporary file at {temp_file} to {original_file}"
+        )
         raise e
     except ChattrError as e:
+        chattr_path = original_file if original_file_exists else os.path.dirname(original_file)
         print(f"run0edit: failed to run chattr on {chattr_path}")
         print("WARNING: the immutable attribute may have been removed!")
         raise e
     except FileContentsMismatchError as e:
-        print(f"WARNING: contents of {filename} does not match contents of edited tempfile.")
+        print(f"WARNING: contents of {original_file} does not match contents of edited tempfile.")
         print("File contents may be corrupted!")
         raise e
 
@@ -276,47 +336,51 @@ def run_editor(*, uid: int, editor: str, path: str):
         raise EditTempFileError from e
 
 
-def run(filename: str, temp_file: str, editor: str, uid: int, *, prompt_immutable: bool = True):
+def run(
+    original_file: str, temp_file: str, editor: str, uid: int, *, prompt_immutable: bool = True
+):
     """
     Copy file to temp file, run editor, and copy temp file back to target file.
     Raises Run0editError if a step fails.
     """
-    filename = os.path.realpath(filename)
-    file_exists = check_file_exists(filename)
+    original_file = os.path.realpath(original_file)
+    original_file_exists = check_file_exists(original_file)
     try:
-        base_path = filename if file_exists else os.path.dirname(filename)
+        base_path = original_file if original_file_exists else os.path.dirname(original_file)
         immutable = handle_check_readonly(
-            base_path, is_dir=not file_exists, prompt_immutable=prompt_immutable
+            base_path, is_dir=not original_file_exists, prompt_immutable=prompt_immutable
         )
     except ReadOnlyImmutableError:
         # User declined to remove immutable attribute; exit normally.
         return
 
-    if file_exists:
+    if original_file_exists:
         try:
-            copy_file_contents(filename, temp_file, create=False)
+            copy_file_contents(original_file, temp_file, create=False)
         except FileCopyError as e:
-            print(f"run0edit: failed to copy {filename} to temporary file at {temp_file}")
+            print(f"run0edit: failed to copy {original_file} to temporary file at {temp_file}")
             raise e
 
     # Attempt to edit the temp file as the original user.
     run_editor(uid=uid, editor=editor, path=temp_file)
 
-    handle_copy_to_dest(filename, temp_file, file_exists=file_exists, immutable=immutable)
+    handle_copy_to_original(
+        original_file, temp_file, original_file_exists=original_file_exists, immutable=immutable
+    )
 
 
 def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
     """Main function."""
     if len(args) < 4:
         return 2
-    filename = args[1]
+    original_file = args[1]
     temp_file = args[2]
     editor = args[3]
     debug = len(args) > 4 and args[4] == "--debug"
     if uid is None:
         uid = int(os.environ["SUDO_UID"])
     try:
-        run(filename, temp_file, editor, uid)
+        run(original_file, temp_file, editor, uid)
     except Run0editError as e:
         if debug:
             raise e

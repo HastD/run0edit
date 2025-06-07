@@ -44,15 +44,16 @@ class TestFindCommand(unittest.TestCase):
     def test_finds_cmds(self):
         """Should find external commands used by module"""
         for mod in (run0edit_inner, run0edit_main):
-            self.assertIsNotNone(mod.find_command("chattr"))
-            self.assertIsNotNone(mod.find_command("lsattr"))
+            self.assertEqual(mod.find_command("chattr"), "/usr/bin/chattr")
+            self.assertEqual(mod.find_command("lsattr"), "/usr/bin/lsattr")
             if shutil.which("run0"):  # pragma: no cover
-                self.assertIsNotNone(mod.find_command("run0"))
+                self.assertEqual(mod.find_command("run0"), "/usr/bin/run0")
 
     def test_nonexistent_cmd(self):
         """Should not find nonexistent command"""
         for mod in (run0edit_inner, run0edit_main):
-            self.assertIsNone(mod.find_command("this_cmd_does_not_exist"))
+            with self.assertRaisesRegex(mod.CommandNotFoundError, "this_cmd_does_not_exist"):
+                mod.find_command("this_cmd_does_not_exist")
 
     def test_check_args(self):
         """Should pass correct arguments to shutil.which"""
@@ -60,4 +61,4 @@ class TestFindCommand(unittest.TestCase):
         for mod in (run0edit_inner, run0edit_main):
             with mock.patch("shutil.which") as mock_which:
                 mod.find_command(cmd)
-                self.assertEqual(mock_which.call_args_list, [((cmd,), {"path": os.defpath})])
+                self.assertEqual(mock_which.call_args_list, [((cmd,), {"path": "/usr/bin:/bin"})])

@@ -94,4 +94,4 @@ jobs:
       - name: Run lizard
         run: |
           PATH="$HOME/.local/bin:$PATH"
-          lizard
+          lizard -C8 -L40 -a8 -Tnloc=40

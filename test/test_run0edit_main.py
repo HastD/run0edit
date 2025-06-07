@@ -92,15 +92,15 @@ class TestIsValidExecutable(unittest.TestCase):
         remove_test_file(file)
 
 
-class TestEditorPath(unittest.TestCase):
-    """Tests for editor_path"""
+class TestGetEditorPathFromConf(unittest.TestCase):
+    """Tests for get_editor_path_from_conf"""
 
     @mock.patch("run0edit_main.open", create=True)
     def test_default_conf_path(self, mock_open):
         """Should check expected default configuration path"""
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
-            run0edit.editor_path()
+            run0edit.get_editor_path_from_conf()
         self.assertEqual(mock_open.call_args.args, ("/etc/run0edit/editor.conf", "r"))
 
     @mock.patch("run0edit_main.open", create=True)
@@ -108,39 +108,93 @@ class TestEditorPath(unittest.TestCase):
         """Should check provided configuration path"""
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
-            run0edit.editor_path(conf_paths=("/some/other/path.conf",))
+            run0edit.get_editor_path_from_conf(conf_path="/some/other/path.conf")
         self.assertEqual(mock_open.call_args.args, ("/some/other/path.conf", "r"))
 
     @mock.patch("run0edit_main.find_command")
-    def test_read_conf_paths(self, mock_find_cmd):
-        """Should read and validate editor path from conf files"""
-        conf1 = new_test_file()
-        conf2 = new_test_file(b"/bin/true\n")
-        with open(conf1, "w", encoding="utf8") as f:
-            f.write(conf1)
-        editor = run0edit.editor_path(conf_paths=(f"{conf1}-bad", conf1, conf2))
+    def test_read_conf_path_valid(self, mock_find_cmd):
+        """Should read and validate editor path from conf file"""
+        conf = new_test_file(b"/bin/true\n")
+        editor = run0edit.get_editor_path_from_conf(conf_path=conf)
         self.assertEqual(editor, "/bin/true")
         self.assertFalse(mock_find_cmd.called)
-        remove_test_file(conf1)
-        remove_test_file(conf2)
+        remove_test_file(conf)
+
+    def test_read_conf_path_invalid(self):
+        """Should read and reject bad editor path from conf file"""
+        conf = new_test_file(b"/dev/null")
+        with self.assertRaises(run0edit.EditorNotFoundError):
+            run0edit.get_editor_path_from_conf(conf_path=conf, fallbacks=())
+        remove_test_file(conf)
+
+    @mock.patch("run0edit_main.find_command")
+    def test_read_bad_conf_path(self, mock_find_cmd):
+        """Should skip over unreadable conf file"""
+        conf = new_test_file()
+        remove_test_file(conf)
+        run0edit.get_editor_path_from_conf(conf_path=conf)
+        self.assertTrue(mock_find_cmd.called)
 
     @mock.patch("run0edit_main.find_command")
     def test_default_fallbacks(self, mock_find_cmd):
-        """Should try to find expected default fallback editors, and return None if none found"""
-        mock_find_cmd.return_value = None
-        self.assertIsNone(run0edit.editor_path(conf_paths=()))
+        """
+        Should try to find expected default fallback editors, and raise exception if none found
+        """
+        mock_find_cmd.side_effect = run0edit.CommandNotFoundError
+        with self.assertRaises(run0edit.EditorNotFoundError):
+            run0edit.get_editor_path_from_conf(conf_path="/dev/null")
         expected = ("nano", "vi")
         self.assertEqual(mock_find_cmd.call_args_list, [((cmd,), {}) for cmd in expected])
 
     def test_provided_fallbacks(self):
         """Should try to find expected default fallback editors, and return None if none found"""
         fallbacks = ("nonexistent-cmd-asdf", "", "true")
-        editor = run0edit.editor_path(conf_paths=(), fallbacks=fallbacks)
+        editor = run0edit.get_editor_path_from_conf(conf_path="/dev/null", fallbacks=fallbacks)
         self.assertIn(editor, ("/bin/true", "/usr/bin/true"))
 
 
-class TestDirectoryDoesNotExist(unittest.TestCase):
-    """Tests for directory_does_not_exist"""
+@mock.patch("run0edit_main.get_editor_path_from_conf")
+class TestGetEditorPath(unittest.TestCase):
+    """Tests for get_editor_path"""
+
+    def test_gets_from_conf_if_not_provided(self, mock_from_conf):
+        """Should get editor from conf file if not provided"""
+        editor = mock.sentinel.editor_from_conf
+        mock_from_conf.return_value = editor
+        self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_conf.call_args_list, [((), {})])
+
+    def test_valid_provided(self, mock_from_conf):
+        """Should return provided editor path if valid"""
+        editor = run0edit.get_editor_path("/bin/true")
+        self.assertEqual(editor, os.path.realpath("/bin/true"))
+        self.assertFalse(mock_from_conf.called)
+
+    def test_invalid_provided(self, mock_from_conf):
+        """Should raise exception if provided invalid editor path"""
+        with self.assertRaisesRegex(run0edit.InvalidEditorError, "/dev/null"):
+            run0edit.get_editor_path("/dev/null")
+        self.assertFalse(mock_from_conf.called)
+
+
+class TestPathExists(unittest.TestCase):
+    """Tests for PathExists enum"""
+
+    def test_variants(self):
+        """Should have expected variants"""
+        self.assertEqual(
+            set(run0edit.PathExists),
+            {run0edit.PathExists.YES, run0edit.PathExists.NO, run0edit.PathExists.MAYBE},
+        )
+
+    def test_from_bool(self):
+        """from_bool method should give expected values"""
+        self.assertEqual(run0edit.PathExists.from_bool(True), run0edit.PathExists.YES)
+        self.assertEqual(run0edit.PathExists.from_bool(False), run0edit.PathExists.NO)
+
+
+class TestCheckDirectoryExistence(unittest.TestCase):
+    """Tests for check_directory_existence"""
 
     def setUp(self):
         """Set up test directory"""
@@ -151,66 +205,81 @@ class TestDirectoryDoesNotExist(unittest.TestCase):
         remove_test_dir(self.test_dir)
 
     def test_fs_root(self):
-        """Should return false for filesystem root /"""
-        self.assertIs(run0edit.directory_does_not_exist("/"), False)
+        """Should return YES for filesystem root /"""
+        self.assertEqual(run0edit.check_directory_existence("/"), run0edit.PathExists.YES)
 
     def test_exists(self):
-        """Should return false when directory exists, whether or not path itself exists"""
+        """Should return YES when directory exists, whether or not path itself exists"""
         file = f"{self.test_dir}/foo.txt"
-        self.assertIs(run0edit.directory_does_not_exist(file), False)
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.YES)
         pathlib.Path(file).touch()
-        self.assertIs(run0edit.directory_does_not_exist(file), False)
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.YES)
 
     def test_unreadable_final_dir(self):
-        """Should return false when directory exists, even if contents are inaccessible"""
+        """Should return YES when directory exists, even if contents are inaccessible"""
         file = f"{self.test_dir}/foo.txt"
         os.chmod(self.test_dir, 0o000)
-        self.assertIs(run0edit.directory_does_not_exist(file), False)
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.YES)
         os.chmod(self.test_dir, 0o700)
 
     def test_unreadable_middle_dir(self):
-        """Should return None if unable to check directory existence"""
+        """Should return MAYBE if unable to check directory existence"""
         file = f"{self.test_dir}/foo/bar.txt"
         os.chmod(self.test_dir, 0o000)
-        self.assertIsNone(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.MAYBE)
         os.chmod(self.test_dir, 0o400)
-        self.assertTrue(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.NO)
         os.chmod(self.test_dir, 0o700)
 
     def test_unreadable_subdir(self):
         """
-        Should return None if missing executable bit on directory prevents
+        Should return MAYBE if missing executable bit on directory prevents
         checking directory existence.
         """
         os.mkdir(f"{self.test_dir}/foo")
         file = f"{self.test_dir}/foo/bar/spam.txt"
         os.chmod(self.test_dir, 0o600)
-        self.assertIsNone(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.MAYBE)
         os.chmod(self.test_dir, 0o700)
 
     def test_not_directory_intermediate(self):
-        """Should return True if file encountered where directory should be"""
+        """Should return NO if file encountered where directory should be"""
         pathlib.Path(f"{self.test_dir}/foo").touch()
         file = f"{self.test_dir}/foo/bar/spam.txt"
-        self.assertTrue(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.NO)
 
     def test_not_directory_final(self):
-        """Should return True if parent is file instead of directory"""
+        """Should return NO if parent is file instead of directory"""
         pathlib.Path(f"{self.test_dir}/foo").touch()
         file = f"{self.test_dir}/foo/bar.txt"
-        self.assertTrue(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.NO)
 
     def test_unknown_parent_type(self):
-        """Should return None if parent exists but unable to determine if it's a directory"""
+        """Should return MAYBE if parent exists but unable to determine if it's a directory"""
         os.mkdir(f"{self.test_dir}/foo")
         file = f"{self.test_dir}/foo/bar.txt"
         os.chmod(self.test_dir, 0o600)
-        self.assertIsNone(run0edit.directory_does_not_exist(file))
+        self.assertEqual(run0edit.check_directory_existence(file), run0edit.PathExists.MAYBE)
         os.chmod(self.test_dir, 0o700)
 
 
 class TestTempFile(unittest.TestCase):
     """Tests for TempFile class"""
+
+    def setUp(self):
+        """Set up temp files"""
+        self.empty_file = run0edit.TempFile("empty")
+        self.non_empty_file = run0edit.TempFile("non-empty")
+        with open(self.non_empty_file.path, "wb") as f:
+            f.write(b"asdf")
+
+    def tearDown(self):
+        """Clean up temp files"""
+        for temp_file in (self.empty_file, self.non_empty_file):
+            try:
+                temp_file.remove()
+            except OSError:
+                pass
 
     def test_temp_file(self):
         """
@@ -237,33 +306,14 @@ class TestTempFile(unittest.TestCase):
         self.assertLess(len(os.path.basename(temp.path)), 100)
         temp.remove()
 
-
-class TestCleanTempFile(unittest.TestCase):
-    """Tests for clean_temp_file"""
-
-    def setUp(self):
-        """Set up temp files"""
-        self.empty_file = run0edit.TempFile("empty")
-        self.non_empty_file = run0edit.TempFile("non-empty")
-        with open(self.non_empty_file.path, "wb") as f:
-            f.write(b"asdf")
-
-    def tearDown(self):
-        """Clean up temp files"""
-        for temp_file in (self.empty_file, self.non_empty_file):
-            try:
-                temp_file.remove()
-            except OSError:
-                pass
-
-    def test_clean_unconditional(self):
+    def test_remove_unconditional(self):
         """Should remove temp file unconditionally by default"""
         self.empty_file.remove()
         self.assertFalse(os.path.exists(self.empty_file.path))
         self.non_empty_file.remove()
         self.assertFalse(os.path.exists(self.non_empty_file.path))
 
-    def test_clean_only_if_empty(self):
+    def test_remove_only_if_empty(self):
         """Should only remove empty temp files with option passed"""
         self.empty_file.remove(only_if_empty=True)
         self.assertFalse(os.path.exists(self.empty_file.path))
@@ -346,41 +396,74 @@ class TestSandboxPath(unittest.TestCase):
         self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlinked_file_path)
 
 
+class TestRun0Arguments(unittest.TestCase):
+    """Tests for Run0Arguments class"""
+
+    def test_argument_list(self):
+        """Should build expected argument list"""
+        run0_args = run0edit.Run0Arguments(
+            description="Description of program",
+            systemd_properties=["foo", "bar"],
+            command="emacs",
+            command_args=["spam", "spamspam", "spam spam spam"],
+        )
+        expected_args = [
+            "/usr/bin/run0",
+            "--description=Description of program",
+            "--property=foo",
+            "--property=bar",
+            "--",
+            "emacs",
+            "spam",
+            "spamspam",
+            "spam spam spam",
+        ]
+        self.assertEqual(run0_args.argument_list(), expected_args)
+
+
 @mock.patch("run0edit_main.find_command")
 class TestBuildRun0Arguments(unittest.TestCase):
     """Tests for build_run0_arguments"""
 
+    @staticmethod
+    def mock_cmd_not_found(not_found_cmd: str):
+        """Mock function to emulate a command not being found."""
+
+        def _mock_cmd_not_found_inner(cmd: str):
+            if cmd == not_found_cmd:
+                raise run0edit.CommandNotFoundError(cmd)
+            return f"/usr/bin/{cmd}"
+
+        return _mock_cmd_not_found_inner
+
     def test_run0_not_found(self, mock_find_cmd):
         """Should raise exception if run0 not found"""
-        mock_find_cmd.side_effect = lambda cmd: None if cmd == "run0" else cmd
-        with self.assertRaisesRegex(run0edit.MissingCommandError, "run0"):
-            run0edit.build_run0_arguments(mock.ANY, mock.ANY, mock.ANY)
+        mock_find_cmd.side_effect = self.mock_cmd_not_found("run0")
+        with self.assertRaisesRegex(run0edit.CommandNotFoundError, "run0"):
+            run0edit.build_run0_arguments("foo", "bar", "baz")
 
     def test_python3_not_found(self, mock_find_cmd):
         """Should raise exception if python3 not found"""
-        mock_find_cmd.side_effect = lambda cmd: None if cmd == "python3" else cmd
-        with self.assertRaisesRegex(run0edit.MissingCommandError, "python3"):
-            run0edit.build_run0_arguments(mock.ANY, mock.ANY, mock.ANY)
+        mock_find_cmd.side_effect = self.mock_cmd_not_found("python3")
+        with self.assertRaisesRegex(run0edit.CommandNotFoundError, "python3"):
+            run0edit.build_run0_arguments("foo", "bar", "baz")
 
     def test_args(self, mock_find_cmd):
         """Should return expected arguments"""
+        # pylint: disable=protected-access
         mock_find_cmd.side_effect = lambda cmd: f"/usr/bin/{cmd}"
         path = new_test_file()
         temp_path = "/path/to/temp/file"
         editor = "/usr/bin/vim"
         args = run0edit.build_run0_arguments(path, temp_path, editor)
         props = run0edit.SYSTEMD_SANDBOX_PROPERTIES
-        self.assertEqual(len(args), len(props) + 8)
-        self.assertEqual(args[0], "/usr/bin/run0")
-        self.assertTrue(args[1].startswith("--description="))
-        for arg, prop in zip(args[2:], props):
-            self.assertEqual(arg, "--property=" + prop)
-        self.assertEqual(args[-6], f'--property=ReadWritePaths="{path}" "{temp_path}"')
-        self.assertEqual(args[-5], "/usr/bin/python3")
-        self.assertEqual(args[-4], run0edit.INNER_SCRIPT_PATH)
-        self.assertEqual(args[-3], path)
-        self.assertEqual(args[-2], temp_path)
-        self.assertEqual(args[-1], editor)
+        self.assertEqual(len(args.systemd_properties), len(props) + 1)
+        self.assertTrue(args.description.startswith("run0edit "))
+        self.assertEqual(args._run0_cmd, "/usr/bin/run0")
+        self.assertEqual(args.systemd_properties[-1], f'ReadWritePaths="{path}" "{temp_path}"')
+        self.assertEqual(args.command, "/usr/bin/python3")
+        self.assertEqual(args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor])
+        self.assertEqual(len(args.argument_list()), len(props) + 9)
         remove_test_file(path)
 
     def test_read_write_paths(self, mock_find_cmd):
@@ -389,15 +472,15 @@ class TestBuildRun0Arguments(unittest.TestCase):
         path = '/blahblah/"foo\\bar/spam.txt'
         temp_path = '"temp"/file'
         args = run0edit.build_run0_arguments(path, temp_path, "...")
-        rw_paths = r'--property=ReadWritePaths="/blahblah/\"foo\\bar" "\"temp\"/file"'
-        self.assertEqual(args[-6], rw_paths)
+        rw_paths = r'ReadWritePaths="/blahblah/\"foo\\bar" "\"temp\"/file"'
+        self.assertIn(rw_paths, args.systemd_properties)
 
     def test_debug_arg(self, mock_find_cmd):
         """Should append --debug with debug option"""
         mock_find_cmd.side_effect = lambda cmd: cmd
         args = run0edit.build_run0_arguments("foo", "bar", "baz")
         args_debug = run0edit.build_run0_arguments("foo", "bar", "baz", debug=True)
-        self.assertEqual(args + ["--debug"], args_debug)
+        self.assertEqual(args.argument_list() + ["--debug"], args_debug.argument_list())
 
 
 class TestPrintErr(unittest.TestCase):
@@ -428,39 +511,47 @@ class TestValidatePath(unittest.TestCase):
 
     def test_directory(self):
         """Should fail if path is directory."""
-        self.assertEqual(run0edit.validate_path("/var"), "/var is a directory.")
+        with self.assertRaisesRegex(run0edit.InvalidPathError, "/var is a directory."):
+            run0edit.validate_path("/var")
 
     def test_user_writable(self):
         """Should fail if path is writable by current user"""
         os.chmod(self.path, 0o600)
-        self.assertEqual(
-            run0edit.validate_path(self.path),
+        with self.assertRaisesRegex(
+            run0edit.InvalidPathError,
             f"{self.path} is writable by the current user; run0edit is unnecessary.",
-        )
+        ):
+            run0edit.validate_path(self.path)
 
     @mock.patch("run0edit_main.readonly_filesystem")
     def test_readonly(self, mock_ro_fs):
         """Should fail if path is on read-only filesystem"""
         mock_ro_fs.return_value = True
-        self.assertEqual(
-            run0edit.validate_path(self.path), f"{self.path} is on a read-only filesystem."
-        )
+        with self.assertRaisesRegex(
+            run0edit.InvalidPathError,
+            f"{self.path} is on a read-only filesystem.",
+        ):
+            run0edit.validate_path(self.path)
         self.assertEqual(mock_ro_fs.call_args.args, (self.path,))
 
     @mock.patch("run0edit_main.readonly_filesystem")
     def test_readonly_directory(self, mock_ro_fs):
         """Should fail if directory is on read-only filesystem"""
         mock_ro_fs.side_effect = [None, True]
-        self.assertEqual(
-            run0edit.validate_path(self.path), f"{self.path} is on a read-only filesystem."
-        )
+        with self.assertRaisesRegex(
+            run0edit.InvalidPathError,
+            f"{self.path} is on a read-only filesystem.",
+        ):
+            run0edit.validate_path(self.path)
         self.assertEqual(mock_ro_fs.call_args.args, (os.path.dirname(self.path),))
 
     def test_path_does_not_exist(self):
         """Should fail if directory does not exist"""
-        self.assertEqual(
-            run0edit.validate_path(f"{self.path}-dir/foo.txt"), f"No such directory {self.path}-dir"
-        )
+        with self.assertRaisesRegex(
+            run0edit.InvalidPathError,
+            f"No such directory {self.path}-dir",
+        ):
+            run0edit.validate_path(f"{self.path}-dir/foo.txt")
 
     def test_success(self):
         """Should succeed (returning None) if path is valid"""
@@ -492,7 +583,7 @@ class TestRun(unittest.TestCase):
     @mock.patch("run0edit_main.validate_path")
     def test_path_validation_failed(self, mock_validate, mock_print_err, mock_subproc):
         """Should validate path and exit with an error message if not valid"""
-        mock_validate.return_value = "some error message"
+        mock_validate.side_effect = run0edit.InvalidPathError("some error message")
         self.assertEqual(run0edit.run(self.path, "..."), 1)
         self.assertEqual(mock_validate.call_args.args, (self.path,))
         self.assertEqual(mock_print_err.call_args.args, ("some error message",))
@@ -510,6 +601,7 @@ class TestRun(unittest.TestCase):
         self.assertTrue(os.path.isfile(temp_filename))
         self.assertEqual(os.path.getsize(temp_filename), 0)
         os.remove(temp_filename)
+        os.rmdir(os.path.dirname(temp_filename))
 
     @mock.patch("os.geteuid")
     def test_check_args(self, mock_geteuid, mock_subproc):
@@ -520,7 +612,7 @@ class TestRun(unittest.TestCase):
         (args,) = mock_subproc.call_args.args
         temp_filename = args[-2]
         expected_args = run0edit.build_run0_arguments(self.path, temp_filename, editor)
-        self.assertEqual(args, expected_args)
+        self.assertEqual(args, expected_args.argument_list())
         kwargs = mock_subproc.call_args.kwargs
         self.assertEqual(kwargs, {"env": mock.ANY, "check": False})
         false_bool_strings = ("0", "no", "n", "false", "f", "off")
@@ -567,6 +659,7 @@ class TestRun(unittest.TestCase):
         temp_filename = args[-2]
         self.assertTrue(os.path.exists(temp_filename))
         os.remove(temp_filename)
+        os.rmdir(os.path.dirname(temp_filename))
         self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.stderr", new_callable=io.StringIO)
@@ -594,25 +687,23 @@ class TestRun(unittest.TestCase):
 
 @mock.patch("sys.stderr", new_callable=io.StringIO)
 @mock.patch("sys.stdout", new_callable=io.StringIO)
-@mock.patch("run0edit_main.run")
-class TestMain(unittest.TestCase):
-    """Tests for main"""
+class TestParseArguments(unittest.TestCase):
+    """Tests for parse_arguments"""
 
     USAGE_TEXT: str = "usage: run0edit [-h] [-v] [--editor EDITOR] FILE [FILE ...]"
     DESCRIPTION: str = "run0edit allows a permitted user to edit a file as root."
 
     @mock.patch("sys.argv", [])
-    def test_no_args(self, mock_run, mock_stdout, mock_stderr):
+    def test_no_args(self, mock_stdout, mock_stderr):
         """Should show usage and exit with code 2 if no arguments passed"""
         with self.assertRaisesRegex(SystemExit, "2"):
-            run0edit.main()
-        self.assertFalse(mock_run.called)
+            run0edit.parse_arguments()
         self.assertEqual(mock_stdout.getvalue(), "")
         msg = mock_stderr.getvalue().strip()
         error_text = "run0edit: error: the following arguments are required: FILE"
         self.assertEqual(msg, f"{self.USAGE_TEXT}\n{error_text}")
 
-    def test_help(self, mock_run, mock_stdout, mock_stderr):
+    def test_help(self, mock_stdout, mock_stderr):
         """Should show usage and exit normally if called with -h or --help"""
         with (
             mock.patch("sys.argv", ["run0edit", "--help"]),
@@ -630,15 +721,14 @@ class TestMain(unittest.TestCase):
             run0edit.main()
         self.assertEqual(mock_stdout.getvalue(), help_text)
         self.assertEqual(mock_stderr.getvalue(), "")
-        self.assertFalse(mock_run.called)
 
-    def test_version(self, mock_run, mock_stdout, mock_stderr):
+    def test_version(self, mock_stdout, mock_stderr):
         """Should show version and exit normally if called with -v or --version"""
         with (
             mock.patch("sys.argv", ["run0edit", "--version"]),
             self.assertRaisesRegex(SystemExit, "0"),
         ):
-            run0edit.main()
+            run0edit.parse_arguments()
         expected_version_text = f"run0edit {run0edit.__version__}\n"
         self.assertEqual(mock_stdout.getvalue(), expected_version_text)
         mock_stdout.truncate(0)
@@ -650,7 +740,52 @@ class TestMain(unittest.TestCase):
             run0edit.main()
         self.assertEqual(mock_stdout.getvalue(), expected_version_text)
         self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--editor=/path/to/editor", "foo"])
+    def test_editor(self, mock_stdout, mock_stderr):
+        """Should accept and store --editor argument"""
+        args = run0edit.parse_arguments()
+        self.assertEqual(args.editor, "/path/to/editor")
+        self.assertFalse(args.debug)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--debug", "foo"])
+    def test_debug(self, mock_stdout, mock_stderr):
+        """Should recognize --debug argument"""
+        args = run0edit.parse_arguments()
+        self.assertIsNone(args.editor)
+        self.assertTrue(args.debug)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "foo", "bar", "baz"])
+    def test_multiple_paths(self, mock_stdout, mock_stderr):
+        """Should accept multiple paths"""
+        args = run0edit.parse_arguments()
+        self.assertEqual(args.paths, ["foo", "bar", "baz"])
+        self.assertIsNone(args.editor)
+        self.assertFalse(args.debug)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+
+@mock.patch("sys.stderr", new_callable=io.StringIO)
+@mock.patch("sys.stdout", new_callable=io.StringIO)
+@mock.patch("run0edit_main.run")
+class TestMain(unittest.TestCase):
+    """Tests for main"""
+
+    @mock.patch("run0edit_main.parse_arguments")
+    def test_parses_arguments(self, mock_parse_args, mock_run, mock_stdout, mock_stderr):
+        """Should call parse_arguments"""
+        mock_parse_args.side_effect = Exception("mock parse_arguments")
+        with self.assertRaisesRegex(Exception, "mock parse_arguments"):
+            run0edit.main()
+        self.assertTrue(mock_parse_args.called)
         self.assertFalse(mock_run.called)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.argv", ["run0edit", "--editor=/bin/true", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script")
@@ -674,12 +809,12 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertRegex(
             mock_stderr.getvalue().replace("\n", " "),
-            "^run0edit: Inner script was not found .* or did not have expected SHA-256 hash",
+            "^run0edit: ERROR: Inner script was not found .* or did not have expected SHA-256 hash",
         )
 
     @mock.patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     @mock.patch("run0edit_main.is_valid_executable")
     def test_valid_editor(
         self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
@@ -696,7 +831,7 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "--editor=/etc/hosts", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     @mock.patch("run0edit_main.is_valid_executable")
     def test_invalid_editor(
         self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
@@ -716,10 +851,10 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     def test_editor_not_found(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should fail with expected message if unable to find editor"""
-        mock_editor_path.return_value = None
+        mock_editor_path.side_effect = run0edit.EditorNotFoundError
         self.assertEqual(run0edit.main(), 1)
         self.assertFalse(mock_run.called)
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -727,7 +862,7 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "path1", "path2"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     def test_successful_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should pass expected arguments to run and exit successfully"""
         editor = "/usr/bin/vim"
@@ -744,7 +879,7 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "path1", "path2", "path3"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     def test_failed_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return as soon as a run returns nonzero"""
         editor = "/usr/bin/vim"
@@ -758,12 +893,12 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "example/path"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     def test_missing_command(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return 1 if command missing"""
         editor = "/usr/bin/vim"
         mock_editor_path.return_value = editor
-        mock_run.side_effect = run0edit.MissingCommandError("foo")
+        mock_run.side_effect = run0edit.CommandNotFoundError("foo")
         self.assertEqual(run0edit.main(), 1)
         self.assertEqual(mock_run.call_args.args, ("example/path", editor))
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -771,7 +906,7 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("sys.argv", ["run0edit", "--debug", "example/path"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.editor_path")
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
     def test_missing_command_debug(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """
         In debug mode, should pass debug argument to `run`, and raise expected
@@ -779,8 +914,8 @@ class TestMain(unittest.TestCase):
         """
         editor = "/usr/bin/vim"
         mock_editor_path.return_value = editor
-        mock_run.side_effect = run0edit.MissingCommandError("foo")
-        with self.assertRaisesRegex(run0edit.MissingCommandError, "foo"):
+        mock_run.side_effect = run0edit.CommandNotFoundError("foo")
+        with self.assertRaisesRegex(run0edit.CommandNotFoundError, "foo"):
             run0edit.main()
         self.assertEqual(mock_run.call_args.kwargs, {"debug": True})
         self.assertEqual(mock_stdout.getvalue(), "")

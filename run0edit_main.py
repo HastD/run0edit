@@ -7,8 +7,30 @@ Please report issues at: https://github.com/HastD/run0edit/issues
 
 Copyright (C) 2025 Daniel Hast
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+-----
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the “Software”), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-----
+
+Licensed under the Apache License, Version 2.0 (the "License").
 You may obtain a copy of the License at
 
     https://www.apache.org/licenses/LICENSE-2.0
@@ -21,9 +43,12 @@ limitations under the License.
 """
 
 import argparse
+import dataclasses
+import enum
 import hashlib
 import os
 import pathlib
+import stat
 import shutil
 import subprocess  # nosec
 import sys
@@ -35,7 +60,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "eb8fbb83b0f8751074896177f8c8a2a6118777cf8a87c86a1f60abcf1c055a0a"
+INNER_SCRIPT_SHA256: Final[str] = "82cee10d49be5b89e1984043e4895fbf58b350c616c610082adb768ed0a0a070"
 
 
 def validate_inner_script() -> bool:
@@ -57,10 +82,19 @@ def readonly_filesystem(path: str) -> Union[bool, None]:
         return None
 
 
-def find_command(command: str) -> Union[str, None]:
+class CommandNotFoundError(Exception):
+    """An external command was not found."""
+
+    # pylint: disable=duplicate-code
+
+
+def find_command(command: str) -> str:
     """Search for command using a default path."""
     # pylint: disable=duplicate-code
-    return shutil.which(command, path=os.defpath)
+    cmd_path = shutil.which(command, path="/usr/bin:/bin")
+    if cmd_path is None:
+        raise CommandNotFoundError(command)
+    return cmd_path
 
 
 def is_valid_executable(path: str) -> bool:
@@ -69,36 +103,62 @@ def is_valid_executable(path: str) -> bool:
     return os.path.isabs(path) and os.path.isfile(path) and os.access(path, is_rx)
 
 
-def editor_path(
+class EditorNotFoundError(Exception):
+    """Provided editor path is invalid."""
+
+
+def get_editor_path_from_conf(
     *,
-    conf_paths: Union[Sequence[str], None] = None,
+    conf_path: str = "/etc/run0edit/editor.conf",
     fallbacks: Union[Sequence[str], None] = None,
-) -> Union[str, None]:
+) -> str:
     """Get path to editor executable."""
-    if conf_paths is None:
-        conf_paths = ("/etc/run0edit/editor.conf",)
-    for conf_path in conf_paths:
-        try:
-            with open(conf_path, "r", encoding="utf8") as f:
-                editor = f.read().strip()
-        except OSError:
-            continue
+    try:
+        with open(conf_path, "r", encoding="utf8") as f:
+            editor = f.read().strip()
+    except OSError:
+        pass
+    else:
         if is_valid_executable(editor):
             return editor
     if fallbacks is None:
         fallbacks = ("nano", "vi")
     for fallback in fallbacks:
-        editor = find_command(fallback)
-        if editor is not None:
-            return editor
-    return None
+        try:
+            return find_command(fallback)
+        except CommandNotFoundError:
+            pass
+    raise EditorNotFoundError
 
 
-def directory_does_not_exist(path: str) -> Union[bool, None]:
-    """
-    Check if the directory containing the path definitely does not exist.
-    Returns None if unable to determine (e.g. due to permission issues).
-    """
+class InvalidEditorError(Exception):
+    """Provided editor path is invalid."""
+
+
+def get_editor_path(provided_editor: str | None = None) -> str:
+    """Get the editor path from either a provided path or conf file."""
+    if provided_editor is None:
+        return get_editor_path_from_conf()
+    if not is_valid_executable(provided_editor):
+        raise InvalidEditorError(provided_editor)
+    return os.path.realpath(provided_editor)
+
+
+class PathExists(enum.Enum):
+    """Possibilities for whether a path exists."""
+
+    YES = enum.auto()
+    NO = enum.auto()
+    MAYBE = enum.auto()
+
+    @classmethod
+    def from_bool(cls, cond: bool):
+        """Convert bool to PathExists"""
+        return cls.YES if cond else cls.NO
+
+
+def check_directory_existence(path: str) -> PathExists:
+    """Check whether the directory containing the path exists."""
     real_path = pathlib.Path(path).resolve()
     partial = pathlib.Path("/")
     # Walk the directory tree from the filesystem root to the target directory
@@ -106,18 +166,20 @@ def directory_does_not_exist(path: str) -> Union[bool, None]:
         try:
             if part not in os.listdir(partial):
                 # Next directory doesn't exist
-                return True
+                return PathExists.NO
         except NotADirectoryError:
-            return True
+            return PathExists.NO
         except OSError:
             # Current directory exists but we don't have permission to list its contents
-            return None
+            return PathExists.MAYBE
         partial = partial / part
-    if os.access(real_path.parent, os.F_OK):
-        # If parent is not a directory then path is invalid so return True
-        return not os.path.isdir(real_path.parent)
-    # Parent exists but unable to determine if it's a directory
-    return None
+    try:
+        parent_mode = os.stat(real_path.parent).st_mode
+    except OSError:
+        # Parent exists but unable to determine if it's a directory
+        return PathExists.MAYBE
+    # If parent is not a directory then path is invalid, otherwise directory exists.
+    return PathExists.from_bool(stat.S_ISDIR(parent_mode))
 
 
 class TempFile:
@@ -172,42 +234,44 @@ SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
 
 def sandbox_path(path: str) -> str:
     """Get the path to be passed to ReadWritePaths"""
-    if os.path.exists(path):
-        rw_path = path
-    else:
-        rw_path = os.path.dirname(path)
-    return rw_path
+    return path if os.path.exists(path) else os.path.dirname(path)
 
 
-class MissingCommandError(Exception):
-    """A command essential for running the program was not found."""
+@dataclasses.dataclass
+class Run0Arguments:
+    """Arguments to be passed to run0."""
+
+    description: str
+    systemd_properties: list[str]
+    command: str
+    command_args: list[str]
+    _run0_cmd: str = dataclasses.field(default_factory=lambda: find_command("run0"))
+
+    def argument_list(self) -> list[str]:
+        """Build the argument list that can be executed."""
+        args = [self._run0_cmd, f"--description={self.description}"]
+        args += [f"--property={prop}" for prop in self.systemd_properties]
+        args += ["--", self.command] + self.command_args
+        return args
 
 
 def build_run0_arguments(
     path: str, temp_path: str, editor: str, *, debug: bool = False
-) -> list[str]:
+) -> Run0Arguments:
     """Construct the arguments to be passed to run0."""
-    run0_cmd = find_command("run0")
-    if run0_cmd is None:
-        raise MissingCommandError("run0")
     python_cmd = find_command("python3")
-    if python_cmd is None:
-        raise MissingCommandError("python3")
-    args = [run0_cmd, f'--description=run0edit "{path}"']
-    for systemd_property in SYSTEMD_SANDBOX_PROPERTIES:
-        args.append(f"--property={systemd_property}")
     rw_path = sandbox_path(path)
-    args += [
-        f'--property=ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"',
-        python_cmd,
-        INNER_SCRIPT_PATH,
-        path,
-        temp_path,
-        editor,
-    ]
+    rw_path_prop = f'ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"'
+    systemd_properties = SYSTEMD_SANDBOX_PROPERTIES + [rw_path_prop]
+    python_args = [INNER_SCRIPT_PATH, path, temp_path, editor]
     if debug:
-        args.append("--debug")
-    return args
+        python_args.append("--debug")
+    return Run0Arguments(
+        description=f'run0edit "{path}"',
+        systemd_properties=systemd_properties,
+        command=python_cmd,
+        command_args=python_args,
+    )
 
 
 def print_err(message: str):
@@ -216,39 +280,45 @@ def print_err(message: str):
     print(text, file=sys.stderr)
 
 
-def validate_path(path: str) -> Union[str, None]:
-    """
-    Check if the path is valid (returning None) or if we should terminate
-    early with error message (returned as a string).
-    """
+class InvalidPathError(Exception):
+    """The provided path is not suitable for use with run0edit."""
+
+    @property
+    def reason(self) -> str:
+        """Reason why the path is invalid."""
+        return str(self.args[0] if self.args else "invalid path")
+
+
+def validate_path(path: str):
+    """Raise an InvalidPathError if path is invalid and we should return early."""
     if os.path.isdir(path):
-        return f"{path} is a directory."
+        raise InvalidPathError(f"{path} is a directory.")
     if os.path.isfile(path) and os.access(path, os.R_OK | os.W_OK):
-        return f"{path} is writable by the current user; run0edit is unnecessary."
+        raise InvalidPathError(f"{path} is writable by the current user; run0edit is unnecessary.")
     directory = os.path.dirname(path)
-    if directory_does_not_exist(path):
-        return f"No such directory {directory}"
+    if check_directory_existence(path) == PathExists.NO:
+        raise InvalidPathError(f"No such directory {directory}")
     readonly = readonly_filesystem(path)
     if readonly is None:
         readonly = readonly_filesystem(directory)
     if readonly:
-        return f"{path} is on a read-only filesystem."
-    return None
+        raise InvalidPathError(f"{path} is on a read-only filesystem.")
 
 
 def run(path: str, editor: str, *, debug: bool = False) -> int:
     """Main program to run for a given file."""
     path = os.path.realpath(path)
-    result = validate_path(path)
-    if result is not None:
-        print_err(result)
+    try:
+        validate_path(path)
+    except InvalidPathError as e:
+        print_err(e.reason)
         return 1
     temp_file = TempFile(path)
     run0_args = build_run0_arguments(path, temp_file.path, editor, debug=debug)
     env = os.environ.copy()
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
-    process = subprocess.run(run0_args, env=env, check=False)  # nosec
+    process = subprocess.run(run0_args.argument_list(), env=env, check=False)  # nosec
     if process.returncode == 226:
         # If directory does not exist, namespace creation will fail, causing
         # run0 to fail with exit status 226:
@@ -263,8 +333,8 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
     return 0
 
 
-def main() -> int:
-    """Main function. Return value becomes the exit code."""
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments using argparse."""
     description = "run0edit allows a permitted user to edit a file as root."
     epilog = "The default choice of text editor may be configured at /etc/run0edit/editor.conf"
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
@@ -272,32 +342,34 @@ def main() -> int:
     parser.add_argument("--editor", help="absolute path to text editor (optional)")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> int:
+    """Main function. Return value becomes the exit code."""
+    args = parse_arguments()
     if not validate_inner_script():
         print_err(f"""
-            Inner script was not found at {INNER_SCRIPT_PATH} or did not have
-            expected SHA-256 hash.
+            ERROR: Inner script was not found at {INNER_SCRIPT_PATH} or did not
+            have expected SHA-256 hash!
         """)
         return 1
-    if args.editor is not None:
-        if is_valid_executable(args.editor):
-            editor = os.path.realpath(args.editor)
-        else:
-            print_err("--editor must be an absolute path to an executable file")
-            return 1
-    else:
-        editor = editor_path()
-    if editor is None:
+    try:
+        editor = get_editor_path(provided_editor=args.editor)
+    except EditorNotFoundError:
         print_err("""
             Editor not found. Please install either nano or vi, or write the path to
             the text editor of your choice to /etc/run0edit/editor.conf
         """)
         return 1
+    except InvalidEditorError:
+        print_err("--editor must be an absolute path to an executable file")
+        return 1
     exit_code = 0
     for path in args.paths:
         try:
             exit_code = run(path, editor, debug=args.debug)
-        except MissingCommandError as e:
+        except CommandNotFoundError as e:
             print_err(f"command `{e.args[0]}` not found")
             if args.debug:
                 raise e
