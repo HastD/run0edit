@@ -6,8 +6,8 @@ authors = [{name = "Daniel Hast"}]
 maintainers = [{name = "Daniel Hast"}]
 description = "run0edit allows a permitted user to edit a file as root using run0."
 readme = "README.md"
-license = "Apache-2.0"
-license-files = "LICENSE"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 
 [project.urls]
 Repository = "https://github.com/HastD/run0edit"
