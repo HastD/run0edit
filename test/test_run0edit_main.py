@@ -344,7 +344,7 @@ class TestSystemdSandboxProperties(unittest.TestCase):
     def test_property_list(self):
         """Should have right number and format of items"""
         items = run0edit.SYSTEMD_SANDBOX_PROPERTIES
-        self.assertEqual(len(items), 25)
+        self.assertEqual(len(items), 26)
         for prop in items:
             self.assertIsInstance(prop, str)
             self.assertIn("=", prop)

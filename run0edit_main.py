@@ -61,6 +61,64 @@ from typing import Final, Union
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_SHA256: Final[str] = "895fa21ab4d3b303b52c936551a280e3b29b78b63d445791f34b8e02d56a18ec"
+DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
+
+SYSTEM_CALL_ALLOW: Final[list[str]] = [
+    "@basic-io",
+    "@file-system",
+    "@io-event",
+    "@ipc",
+    "@network-io",
+    "@process",
+    "@sandbox",
+    "@signal",
+    "@timer",
+    "@sync",
+    "ioctl",
+    "name_to_handle_at",
+    "uname",
+]
+
+SYSTEM_CALL_DENY: Final[list[str]] = [
+    "@aio",
+    "@chown",
+    "@keyring",
+    "@memlock",
+    "@mount",
+    "@privileged",
+    "@resources",
+    "@setuid",
+    "memfd_create",
+]
+
+SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
+    "CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER CAP_LINUX_IMMUTABLE",
+    "DevicePolicy=closed",
+    "LockPersonality=yes",
+    "MemoryDenyWriteExecute=yes",
+    "NoNewPrivileges=yes",
+    "PrivateDevices=yes",
+    "PrivateIPC=yes",
+    "PrivateNetwork=yes",
+    "ProcSubset=pid",
+    "ProtectClock=yes",
+    "ProtectControlGroups=yes",
+    "ProtectHome=read-only",
+    "ProtectHostname=yes",
+    "ProtectKernelLogs=yes",
+    "ProtectKernelModules=yes",
+    "ProtectKernelTunables=yes",
+    "ProtectProc=noaccess",
+    "ProtectSystem=strict",
+    "RestrictAddressFamilies=AF_UNIX",
+    "RestrictNamespaces=yes",
+    "RestrictRealtime=yes",
+    "RestrictSUIDSGID=yes",
+    "SystemCallArchitectures=native",
+    f"SystemCallFilter={' '.join(SYSTEM_CALL_ALLOW)}",
+    f"SystemCallFilter=~{' '.join(SYSTEM_CALL_DENY)}",
+    "SystemCallErrorNumber=EPERM",
+]
 
 
 def validate_inner_script() -> bool:
@@ -107,7 +165,7 @@ class EditorNotFoundError(Exception):
 
 def get_editor_path_from_conf(
     *,
-    conf_path: str = "/etc/run0edit/editor.conf",
+    conf_path: str = DEFAULT_CONF_PATH,
     fallbacks: Union[Sequence[str], None] = None,
 ) -> str:
     """Get path to editor executable."""
@@ -199,35 +257,6 @@ class TempFile:
 def escape_path(path: str) -> str:
     """Escape a path for use in a systemd property string."""
     return path.replace("\\", "\\\\").replace('"', '\\"')
-
-
-SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
-    "CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER CAP_LINUX_IMMUTABLE",
-    "DevicePolicy=closed",
-    "LockPersonality=yes",
-    "MemoryDenyWriteExecute=yes",
-    "NoNewPrivileges=yes",
-    "PrivateDevices=yes",
-    "PrivateIPC=yes",
-    "PrivateNetwork=yes",
-    "ProcSubset=pid",
-    "ProtectClock=yes",
-    "ProtectControlGroups=yes",
-    "ProtectHome=read-only",
-    "ProtectHostname=yes",
-    "ProtectKernelLogs=yes",
-    "ProtectKernelModules=yes",
-    "ProtectKernelTunables=yes",
-    "ProtectProc=noaccess",
-    "ProtectSystem=strict",
-    "RestrictAddressFamilies=AF_UNIX",
-    "RestrictNamespaces=yes",
-    "RestrictRealtime=yes",
-    "RestrictSUIDSGID=yes",
-    "SystemCallArchitectures=native",
-    "SystemCallFilter=@system-service",
-    "SystemCallFilter=~memfd_create @mount @privileged",
-]
 
 
 def sandbox_path(path: str) -> str:

@@ -25,13 +25,14 @@ Rewrote script in Python.
   configuration path at `/usr/etc/run0edit/editor.conf` was pretty much
   redundant.
 - Minor changes to the wording of error messages and the `--help` text.
+- Stricter seccomp filters for the inner script.
 
 ### Testing and CI
 
 - Added unit tests with 100% test coverage.
 - Added GitHub workflows that automatically run Ruff, PyLint (for all Python
-  versions 3.9 through 3.13), Bandit, the unit tests, and a unit test coverage
-  check on every pushed commit.
+  versions 3.9 through 3.13), Bandit, Lizard, the unit tests, and a unit test
+  coverage check on every pushed commit.
 
 ## [v0.4.4] - 2025-05-22
 
