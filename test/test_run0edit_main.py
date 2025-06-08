@@ -34,12 +34,6 @@ class TestGlobalConstants(unittest.TestCase):
         """DEFAULT_CONF_PATH should have expected value"""
         self.assertEqual(run0edit.DEFAULT_CONF_PATH, "/etc/run0edit/editor.conf")
 
-    def test_system_call_allow(self):
-        """SYSTEM_CALL_ALLOW should have expected number and format of items"""
-        self.assertEqual(len(run0edit.SYSTEM_CALL_ALLOW), 13)
-        for item in run0edit.SYSTEM_CALL_ALLOW:
-            self.assertRegex(item, r"^@?[a-zA-Z0-9_-]+$")
-
     def test_system_call_deny(self):
         """SYSTEM_CALL_DENY should have expected number and format of items"""
         self.assertEqual(len(run0edit.SYSTEM_CALL_DENY), 9)

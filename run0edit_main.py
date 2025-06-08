@@ -63,22 +63,6 @@ INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_SHA256: Final[str] = "895fa21ab4d3b303b52c936551a280e3b29b78b63d445791f34b8e02d56a18ec"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
-SYSTEM_CALL_ALLOW: Final[list[str]] = [
-    "@basic-io",
-    "@file-system",
-    "@io-event",
-    "@ipc",
-    "@network-io",
-    "@process",
-    "@sandbox",
-    "@signal",
-    "@timer",
-    "@sync",
-    "ioctl",
-    "name_to_handle_at",
-    "uname",
-]
-
 SYSTEM_CALL_DENY: Final[list[str]] = [
     "@aio",
     "@chown",
@@ -115,7 +99,7 @@ SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
     "RestrictRealtime=yes",
     "RestrictSUIDSGID=yes",
     "SystemCallArchitectures=native",
-    f"SystemCallFilter={' '.join(SYSTEM_CALL_ALLOW)}",
+    "SystemCallFilter=@system-service",
     f"SystemCallFilter=~{' '.join(SYSTEM_CALL_DENY)}",
     "SystemCallErrorNumber=EPERM",
 ]
