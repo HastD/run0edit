@@ -60,7 +60,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "82cee10d49be5b89e1984043e4895fbf58b350c616c610082adb768ed0a0a070"
+INNER_SCRIPT_SHA256: Final[str] = "2c9a99b6749f1b3f6fb5a82a71804dfb383bf0c7d2df0e9283eb127eb9ca786e"
 
 
 def validate_inner_script() -> bool:
@@ -84,8 +84,6 @@ def readonly_filesystem(path: str) -> Union[bool, None]:
 
 class CommandNotFoundError(Exception):
     """An external command was not found."""
-
-    # pylint: disable=duplicate-code
 
 
 def find_command(command: str) -> str:

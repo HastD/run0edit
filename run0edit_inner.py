@@ -159,7 +159,7 @@ def check_file_exists(path: str) -> bool:
 def is_immutable(path: str) -> bool:
     """Determine if the file or directory at the path has the immutable attribute."""
     try:
-        result = run_command("lsattr", "-d", path, capture_output=True)
+        result = run_command("lsattr", "-d", "--", path, capture_output=True)
     except SubprocessError:
         return False
     return result is not None and "i" in result.strip().split()[0]
