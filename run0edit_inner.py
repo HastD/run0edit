@@ -376,9 +376,9 @@ def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
     original_file = args[1]
     temp_file = args[2]
     editor = args[3]
-    DEBUG_STR = "--debug"
-    debug = len(args) > 4 and args[4] == DEBUG_STR
-    if len(args) > 4 and args[4] != DEBUG_STR:
+    debug_str = "--debug"
+    debug = len(args) > 4 and args[4] == debug_str
+    if len(args) > 4 and args[4] != debug_str:
         return 2
     if uid is None:
         uid = int(os.environ["SUDO_UID"])

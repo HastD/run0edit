@@ -682,6 +682,11 @@ class TestMain(unittest.TestCase):
         self.assertEqual(inner.main(self.ARGS[:3]), 2)
         self.assertFalse(mock_run.called)
 
+    def test_bad_debug_arg(self, mock_run):
+        """Should return 2 if debug argument has unexpected value"""
+        self.assertEqual(inner.main(self.ARGS[:4] + ["???"]), 2)
+        self.assertFalse(mock_run.called)
+
     def test_normal_run(self, mock_run):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS[:4]), 0)
