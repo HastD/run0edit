@@ -13,30 +13,48 @@ import run0edit_main as run0edit
 from . import new_test_file, remove_test_file, new_test_dir, remove_test_dir
 
 
-class TestVersionStringFormat(unittest.TestCase):
-    """Test constant __version__"""
+class TestGlobalConstants(unittest.TestCase):
+    """Tests for global constants"""
 
     def test_version_string_semver(self):
-        """Version string should match semantic versioning syntax"""
+        """__version__ should match semantic versioning syntax"""
         self.assertRegex(run0edit.__version__, r"[0-9]+\.[0-9]+\.[0-9]+")
 
-
-class TestInnerScriptPath(unittest.TestCase):
-    """Test constant INNER_SCRIPT_PATH"""
-
     def test_inner_script_path(self):
-        """Should have expected value"""
+        """INNER_SCRIPT_PATH should have expected value"""
         self.assertEqual(run0edit.INNER_SCRIPT_PATH, "/usr/libexec/run0edit/run0edit_inner.py")
 
-
-class TestInnerScriptSha256(unittest.TestCase):
-    """Test constant INNER_SCRIPT_SHA256"""
-
     def test_inner_script_sha256(self):
-        """Inner script should have expected SHA-256 hash"""
+        """INNER_SCRIPT_SHA256 should equal SHA-256 hash of inner script"""
         with open("run0edit_inner.py", "rb") as f:
             file_hash = hashlib.sha256(f.read())
         self.assertEqual(file_hash.hexdigest(), run0edit.INNER_SCRIPT_SHA256)
+
+    def test_default_conf_path(self):
+        """DEFAULT_CONF_PATH should have expected value"""
+        self.assertEqual(run0edit.DEFAULT_CONF_PATH, "/etc/run0edit/editor.conf")
+
+    def test_system_call_allow(self):
+        """SYSTEM_CALL_ALLOW should have expected number and format of items"""
+        self.assertEqual(len(run0edit.SYSTEM_CALL_ALLOW), 13)
+        for item in run0edit.SYSTEM_CALL_ALLOW:
+            self.assertRegex(item, r"^@?[a-zA-Z0-9_-]+$")
+
+    def test_system_call_deny(self):
+        """SYSTEM_CALL_DENY should have expected number and format of items"""
+        self.assertEqual(len(run0edit.SYSTEM_CALL_DENY), 9)
+        for item in run0edit.SYSTEM_CALL_DENY:
+            self.assertRegex(item, r"^@?[a-zA-Z0-9_-]+$")
+
+    def test_systemd_sandbox_properties(self):
+        """SYSTEMD_SANDBOX_PROPERTIES should have expected number and format of items"""
+        self.assertEqual(len(run0edit.SYSTEMD_SANDBOX_PROPERTIES), 26)
+        for prop in run0edit.SYSTEMD_SANDBOX_PROPERTIES:
+            self.assertIsInstance(prop, str)
+            self.assertIn("=", prop)
+            key, value = prop.split("=", maxsplit=1)
+            self.assertRegex(key, "[A-Z][A-Za-z]*")
+            self.assertTrue(value.isascii())
 
 
 class TestValidateInnerScript(unittest.TestCase):
@@ -101,7 +119,7 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
             run0edit.get_editor_path_from_conf()
-        self.assertEqual(mock_open.call_args.args, ("/etc/run0edit/editor.conf", "r"))
+        self.assertEqual(mock_open.call_args.args, (run0edit.DEFAULT_CONF_PATH, "r"))
 
     @mock.patch("run0edit_main.open", create=True)
     def test_provided_conf_path(self, mock_open):
@@ -336,21 +354,6 @@ class TestEscapePath(unittest.TestCase):
             self.assertEqual(run0edit.escape_path(path), output)
         for case in test_cases_unchanged:
             self.assertEqual(run0edit.escape_path(case), case)
-
-
-class TestSystemdSandboxProperties(unittest.TestCase):
-    """Tests for SYSTEMD_SANDBOX_PROPERTIES constant"""
-
-    def test_property_list(self):
-        """Should have right number and format of items"""
-        items = run0edit.SYSTEMD_SANDBOX_PROPERTIES
-        self.assertEqual(len(items), 26)
-        for prop in items:
-            self.assertIsInstance(prop, str)
-            self.assertIn("=", prop)
-            key, value = prop.split("=", maxsplit=1)
-            self.assertRegex(key, "[A-Z][A-Za-z]*")
-            self.assertTrue(value.isascii())
 
 
 class TestSandboxPath(unittest.TestCase):
