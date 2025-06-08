@@ -162,7 +162,7 @@ def is_immutable(path: str) -> bool:
         result = run_command("lsattr", "-d", "--", path, capture_output=True)
     except SubprocessError:
         return False
-    return result is not None and "i" in result.strip().split()[0]
+    return result is not None and "i" in result.strip().split(maxsplit=1)[0]
 
 
 def should_remove_immutable(path: str, is_dir: bool) -> bool:

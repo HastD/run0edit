@@ -60,7 +60,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "2c9a99b6749f1b3f6fb5a82a71804dfb383bf0c7d2df0e9283eb127eb9ca786e"
+INNER_SCRIPT_SHA256: Final[str] = "12bb6b9f8f0f52bd1b578c265c36698bfd4f2b4e83a5907f433be349775b26e6"
 
 
 def validate_inner_script() -> bool:
