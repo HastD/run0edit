@@ -670,42 +670,84 @@ class TestRun(TestCaseWithFiles):
         self.assertIn("declined to remove immutable attribute", mock_stdout.getvalue())
 
 
+@mock.patch("sys.stdout", new_callable=io.StringIO)
+class TestParseArgs(unittest.TestCase):
+    """Tests for parse_args"""
+
+    ARGS = [mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, "--debug"]
+
+    def test_three_args(self, mock_stdout):
+        """Should return three provided arguments plus False"""
+        self.assertEqual(inner.parse_args(self.ARGS[:3]), tuple(self.ARGS[:3] + [False]))
+        self.assertEqual(mock_stdout.getvalue(), "")
+
+    def test_debug(self, mock_stdout):
+        """Should return three provided arguments plus True"""
+        self.assertEqual(inner.parse_args(self.ARGS), tuple(self.ARGS[:3] + [True]))
+        self.assertEqual(mock_stdout.getvalue(), "")
+
+    def test_too_few_args(self, mock_stdout):
+        """Should print expected message and raise exception if too few arguments"""
+        with self.assertRaises(inner.InvalidArgumentsError):
+            inner.parse_args(self.ARGS[:2])
+        self.assertEqual(mock_stdout.getvalue(), "run0edit_inner.py: Error: too few arguments\n")
+
+    def test_bad_debug_arg(self, mock_stdout):
+        """
+        Should print expected message and raise exception if debug argument has unexpected value
+        """
+        with self.assertRaises(inner.InvalidArgumentsError):
+            inner.parse_args(self.ARGS[:3] + ["???"])
+        self.assertEqual(mock_stdout.getvalue(), "run0edit_inner.py: Error: too many arguments\n")
+
+    def test_too_many_args(self, mock_stdout):
+        """Should print expected message and raise exception if too many arguments"""
+        with self.assertRaises(inner.InvalidArgumentsError):
+            inner.parse_args(self.ARGS[:3] + ["--debug", "spam"])
+        self.assertEqual(mock_stdout.getvalue(), "run0edit_inner.py: Error: too many arguments\n")
+
+
 @mock.patch("run0edit_inner.run")
-@mock.patch("os.environ", new={"SUDO_UID": "42"})
+@mock.patch("os.environ", new={"SUDO_UID": 42})
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
-    ARGS = [mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3, "--debug"]
+    ARGS = [mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, "--debug"]
 
-    def test_too_few_args(self, mock_run):
-        """Should return 2 if too few arguments"""
-        self.assertEqual(inner.main(self.ARGS[:3]), 2)
-        self.assertFalse(mock_run.called)
+    @mock.patch("run0edit_inner.parse_args")
+    def test_parses_args(self, mock_parse_args, mock_run):
+        """Should parse arguments using parse_args"""
+        mock_parse_args.return_value = tuple(self.ARGS[:3] + [False])
+        inner.main(mock.sentinel.main_args)
+        self.assertEqual(mock_parse_args.call_args, ((mock.sentinel.main_args,), {}))
+        self.assertEqual(mock_run.call_args, (tuple(self.ARGS[:3] + [42]), {}))
 
-    def test_bad_debug_arg(self, mock_run):
-        """Should return 2 if debug argument has unexpected value"""
-        self.assertEqual(inner.main(self.ARGS[:4] + ["???"]), 2)
+    @mock.patch("run0edit_inner.parse_args")
+    def test_invalid_args(self, mock_parse_args, mock_run):
+        """Should return 2 if parse_args raises InvalidArgumentsError"""
+        mock_parse_args.side_effect = inner.InvalidArgumentsError
+        self.assertEqual(inner.main(mock.sentinel.main_args), 2)
         self.assertFalse(mock_run.called)
 
     def test_normal_run(self, mock_run):
         """Should pass correct args to run and return 0"""
-        self.assertEqual(inner.main(self.ARGS[:4]), 0)
-        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
+        self.assertEqual(inner.main(self.ARGS[:3]), 0)
+        self.assertEqual(mock_run.call_args, (tuple(self.ARGS[:3] + [42]), {}))
 
     def test_normal_run_with_uid(self, mock_run):
         """Should pass correct args to run and return 0"""
-        self.assertEqual(inner.main(self.ARGS[:4], uid=5), 0)
-        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [5]))
+        self.assertEqual(inner.main(self.ARGS[:3], uid=5), 0)
+        self.assertEqual(mock_run.call_args, (tuple(self.ARGS[:3] + [5]), {}))
 
     def test_failed_run(self, mock_run):
         """Should pass correct args to run and return 1"""
         mock_run.side_effect = inner.Run0editError
-        self.assertEqual(inner.main(self.ARGS[:4]), 1)
-        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
+        self.assertEqual(inner.main(self.ARGS[:3]), 1)
+        self.assertEqual(mock_run.call_args, (tuple(self.ARGS[:3] + [42]), {}))
 
     def test_failed_run_debug(self, mock_run):
         """Should pass correct args to run and raise exception"""
         mock_run.side_effect = inner.Run0editError
         with self.assertRaises(inner.Run0editError):
             inner.main(self.ARGS)
-        self.assertEqual(mock_run.call_args.args, tuple(self.ARGS[1:4] + [42]))
+        self.assertEqual(mock_run.call_args, (tuple(self.ARGS[:3] + [42]), {}))

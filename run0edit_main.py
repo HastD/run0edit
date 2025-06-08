@@ -60,7 +60,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "895fa21ab4d3b303b52c936551a280e3b29b78b63d445791f34b8e02d56a18ec"
+INNER_SCRIPT_SHA256: Final[str] = "057c16a1f2aae66370f9b79629f3bddfcf1cb82fed1a4e0f13c05a357dda9cd8"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -143,7 +143,19 @@ def is_valid_executable(path: str) -> bool:
     return os.path.isabs(path) and os.path.isfile(path) and os.access(path, is_rx)
 
 
-class EditorNotFoundError(Exception):
+class EditorSelectionError(Exception):
+    """Parent class for exceptions involving editor selection."""
+
+
+class EditorNotFoundError(EditorSelectionError):
+    """Could not find a valid editor."""
+
+
+class InvalidEditorConfError(EditorSelectionError):
+    """Editor path in conf file is invalid."""
+
+
+class InvalidProvidedEditorError(EditorSelectionError):
     """Provided editor path is invalid."""
 
 
@@ -159,8 +171,12 @@ def get_editor_path_from_conf(
     except OSError:
         pass
     else:
-        if is_valid_executable(editor):
+        if not editor:
+            pass
+        elif is_valid_executable(editor):
             return editor
+        else:
+            raise InvalidEditorConfError(editor)
     if fallbacks is None:
         fallbacks = ("nano", "vi")
     for fallback in fallbacks:
@@ -171,17 +187,36 @@ def get_editor_path_from_conf(
     raise EditorNotFoundError
 
 
-class InvalidEditorError(Exception):
-    """Provided editor path is invalid."""
-
-
 def get_editor_path(provided_editor: Union[str, None] = None) -> str:
     """Get the editor path from either a provided path or conf file."""
     if provided_editor is None:
         return get_editor_path_from_conf()
     if not is_valid_executable(provided_editor):
-        raise InvalidEditorError(provided_editor)
+        raise InvalidProvidedEditorError(provided_editor)
     return os.path.realpath(provided_editor)
+
+
+def handle_editor_selection(provided_editor: Union[str, None] = None) -> str:
+    """Get editor path, handling errors by printing error messages and re-raising."""
+    try:
+        return get_editor_path(provided_editor=provided_editor)
+    except EditorNotFoundError:
+        print_err(f"""
+            Editor not found. Please install either nano or vi, or write the path to
+            the text editor of your choice to {DEFAULT_CONF_PATH}
+        """)
+        raise
+    except InvalidEditorConfError:
+        print_err(f"""
+            Configuration file has an invalid editor. Please edit {DEFAULT_CONF_PATH}
+            to contain an absolute path to the executable that you want run0edit to use
+            as a text editor. You may also use the --editor option to specify the
+            editor to use for a single run of run0edit.
+        """)
+        raise
+    except InvalidProvidedEditorError:
+        print_err("--editor must be an absolute path to an executable file")
+        raise
 
 
 class PathExists(enum.Enum):
@@ -347,7 +382,7 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments using argparse."""
     description = "run0edit allows a permitted user to edit a file as root."
-    epilog = "The default choice of text editor may be configured at /etc/run0edit/editor.conf"
+    epilog = f"The default choice of text editor may be configured at {DEFAULT_CONF_PATH}"
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--editor", help="absolute path to text editor (optional)")
@@ -366,15 +401,8 @@ def main() -> int:
         """)
         return 1
     try:
-        editor = get_editor_path(provided_editor=args.editor)
-    except EditorNotFoundError:
-        print_err("""
-            Editor not found. Please install either nano or vi, or write the path to
-            the text editor of your choice to /etc/run0edit/editor.conf
-        """)
-        return 1
-    except InvalidEditorError:
-        print_err("--editor must be an absolute path to an executable file")
+        editor = handle_editor_selection(provided_editor=args.editor)
+    except EditorSelectionError:
         return 1
     exit_code = 0
     for path in args.paths:

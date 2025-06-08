@@ -203,15 +203,15 @@ def handle_check_readonly(path: str, is_dir: bool, *, prompt_immutable: bool = T
     """Call check_readonly, handling errors."""
     try:
         return check_readonly(path, is_dir=is_dir, prompt_immutable=prompt_immutable)
-    except ReadOnlyFilesystemError as e:
+    except ReadOnlyFilesystemError:
         print(f"run0edit: {path} is on a read-only filesystem.")
-        raise e
-    except ReadOnlyImmutableError as e:
+        raise
+    except ReadOnlyImmutableError:
         print("run0edit: user declined to remove immutable attribute; exiting.")
-        raise e
-    except ReadOnlyOtherError as e:
+        raise
+    except ReadOnlyOtherError:
         print(f"run0edit: {path} is read-only.")
-        raise e
+        raise
 
 
 def copy_file_contents(src: str, dest: str, *, create: bool):
@@ -308,20 +308,20 @@ def handle_copy_to_original(
         copy_to_original(
             original_file, temp_file, original_file_exists=original_file_exists, immutable=immutable
         )
-    except FileCopyError as e:
+    except FileCopyError:
         print(
             f"run0edit: unable to copy contents of temporary file at {temp_file} to {original_file}"
         )
-        raise e
-    except ChattrError as e:
+        raise
+    except ChattrError:
         chattr_path = original_file if original_file_exists else os.path.dirname(original_file)
         print(f"run0edit: failed to run chattr on {chattr_path}")
         print("WARNING: the immutable attribute may have been removed!")
-        raise e
-    except FileContentsMismatchError as e:
+        raise
+    except FileContentsMismatchError:
         print(f"WARNING: contents of {original_file} does not match contents of edited tempfile.")
         print("File contents may be corrupted!")
-        raise e
+        raise
 
 
 def run_editor(*, uid: int, editor: str, path: str):
@@ -357,9 +357,9 @@ def run(
     if original_file_exists:
         try:
             copy_file_contents(original_file, temp_file, create=False)
-        except FileCopyError as e:
+        except FileCopyError:
             print(f"run0edit: failed to copy {original_file} to temporary file at {temp_file}")
-            raise e
+            raise
 
     # Attempt to edit the temp file as the original user.
     run_editor(uid=uid, editor=editor, path=temp_file)
@@ -369,27 +369,39 @@ def run(
     )
 
 
+class InvalidArgumentsError(Exception):
+    """Arguments to script are invalid."""
+
+
+def parse_args(args: Sequence[str]) -> tuple[str, str, str, bool]:
+    """Parse command-line arguments, raising error if too few or too many."""
+    if len(args) < 3:
+        print("run0edit_inner.py: Error: too few arguments")
+        raise InvalidArgumentsError
+    debug_str = "--debug"
+    debug = len(args) == 4 and args[3] == debug_str
+    if (len(args) == 4 and args[3] != debug_str) or len(args) > 4:
+        print("run0edit_inner.py: Error: too many arguments")
+        raise InvalidArgumentsError
+    return args[0], args[1], args[2], debug
+
+
 def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
     """Main function."""
-    if len(args) < 4:
-        return 2
-    original_file = args[1]
-    temp_file = args[2]
-    editor = args[3]
-    debug_str = "--debug"
-    debug = len(args) > 4 and args[4] == debug_str
-    if len(args) > 4 and args[4] != debug_str:
+    try:
+        original_file, temp_file, editor, debug = parse_args(args)
+    except InvalidArgumentsError:
         return 2
     if uid is None:
         uid = int(os.environ["SUDO_UID"])
     try:
         run(original_file, temp_file, editor, uid)
-    except Run0editError as e:
+    except Run0editError:
         if debug:
-            raise e
+            raise
         return 1
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main(sys.argv))
+    sys.exit(main(sys.argv[1:]))

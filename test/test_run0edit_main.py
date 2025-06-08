@@ -132,11 +132,18 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         self.assertFalse(mock_find_cmd.called)
         remove_test_file(conf)
 
+    def test_read_conf_path_empty(self):
+        """Should read and reject bad editor path from conf file"""
+        conf = new_test_file(b"\n")
+        with self.assertRaises(run0edit.EditorNotFoundError):
+            run0edit.get_editor_path_from_conf(conf_path=conf, fallbacks=())
+        remove_test_file(conf)
+
     def test_read_conf_path_invalid(self):
         """Should read and reject bad editor path from conf file"""
         conf = new_test_file(b"/dev/null")
-        with self.assertRaises(run0edit.EditorNotFoundError):
-            run0edit.get_editor_path_from_conf(conf_path=conf, fallbacks=())
+        with self.assertRaises(run0edit.InvalidEditorConfError):
+            run0edit.get_editor_path_from_conf(conf_path=conf)
         remove_test_file(conf)
 
     @mock.patch("run0edit_main.find_command")
@@ -184,9 +191,38 @@ class TestGetEditorPath(unittest.TestCase):
 
     def test_invalid_provided(self, mock_from_conf):
         """Should raise exception if provided invalid editor path"""
-        with self.assertRaisesRegex(run0edit.InvalidEditorError, "/dev/null"):
+        with self.assertRaisesRegex(run0edit.InvalidProvidedEditorError, "/dev/null"):
             run0edit.get_editor_path("/dev/null")
         self.assertFalse(mock_from_conf.called)
+
+
+@mock.patch("run0edit_main.get_editor_path")
+class TestHandleEditorSelection(unittest.TestCase):
+    """Tests for handle_editor_selection"""
+
+    def test_check_args(self, mock_get_editor):
+        """Should pass argument to get_editor_path and return its return value"""
+        mock_get_editor.return_value = mock.sentinel.editor_path
+        provided = mock.sentinel.provided
+        editor = run0edit.handle_editor_selection(provided_editor=provided)
+        self.assertEqual(editor, mock.sentinel.editor_path)
+        self.assertEqual(mock_get_editor.call_args, ((), {"provided_editor": provided}))
+
+    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    def test_handle_errors(self, mock_stderr, mock_get_editor):
+        """Should print expected messages in response to errors"""
+        error_patterns = {
+            run0edit.EditorNotFoundError: r"^run0edit: Editor not found\. Please install either ",
+            run0edit.InvalidEditorConfError: r"^run0edit: Configuration file has an invalid ",
+            run0edit.InvalidProvidedEditorError: r"^run0edit: --editor must be an absolute path ",
+        }
+        mock_get_editor.side_effect = list(error_patterns)
+        for err, pattern in error_patterns.items():
+            with self.assertRaises(err):
+                run0edit.handle_editor_selection()
+            self.assertRegex(mock_stderr.getvalue(), pattern)
+            mock_stderr.truncate(0)
+            mock_stderr.seek(0)
 
 
 class TestPathExists(unittest.TestCase):
