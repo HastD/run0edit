@@ -24,6 +24,9 @@ Rewrote script in Python.
 - Only use `/etc/run0edit/editor.conf` as a configuration file, as the secondary
   configuration path at `/usr/etc/run0edit/editor.conf` was pretty much
   redundant.
+- Fail with an error message if the config file is nonempty and contains an
+  invalid path. Previously this was silently ignored, defaulting to a fallback
+  editor.
 - Minor changes to the wording of error messages and the `--help` text.
 - Stricter seccomp filters for the inner script.
 
