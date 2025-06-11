@@ -8,9 +8,9 @@ URL:            https://github.com/HastD/%{name}
 Source:         %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
-BuildRequires:  python3 >= 3.9
 Requires:       python3 >= 3.9
 Requires:       systemd >= 256
+Recommends:     e2fsprogs
 
 %description
 %{name} is to run0 what sudoedit is to sudo.
@@ -40,5 +40,7 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
   - Update to version 0.5.0
   - Python rewrite: install Python scripts in place of old shell script
   - Fix systemd and Python version requirements
+  - Add `Recommends: e2fsprogs` for immutable attribute support.
+  - Remove `BuildRequires: python3` as there's no longer a build process.
 * Thu May 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.4.4
   - Initial RPM release

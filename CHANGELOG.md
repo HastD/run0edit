@@ -9,6 +9,8 @@ Rewrote script in Python.
 - Added an `--editor` option to allow the user to choose a different text
   editor. This must be an absolute path to an executable file, and the filename
   will be passed as the first argument to it.
+- Added a `--no-prompt` option to skip the prompt asking the user to confirm
+  whether they want to remove the immutable attribute from a file to edit it.
 - Allow the user to pass multiple file paths to `run0edit`, which will be edited
   one after the other (like if you pass multiple paths to `sudoedit`).
 

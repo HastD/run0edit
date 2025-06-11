@@ -216,7 +216,7 @@ class TestHandleEditorSelection(unittest.TestCase):
             run0edit.InvalidEditorConfError: r"^run0edit: Configuration file has an invalid ",
             run0edit.InvalidProvidedEditorError: r"^run0edit: --editor must be an absolute path ",
         }
-        mock_get_editor.side_effect = list(error_patterns)
+        mock_get_editor.side_effect = iter(error_patterns)
         for err, pattern in error_patterns.items():
             with self.assertRaises(err):
                 run0edit.handle_editor_selection()
@@ -512,11 +512,16 @@ class TestBuildRun0Arguments(unittest.TestCase):
         self.assertIn(rw_paths, args.systemd_properties)
 
     def test_debug_arg(self, mock_find_cmd):
-        """Should append --debug with debug option"""
+        """Should set environment variable with debug option"""
         mock_find_cmd.side_effect = lambda cmd: cmd
-        args = run0edit.build_run0_arguments("foo", "bar", "baz")
         args_debug = run0edit.build_run0_arguments("foo", "bar", "baz", debug=True)
-        self.assertEqual(args.argument_list() + ["--debug"], args_debug.argument_list())
+        self.assertIn("--setenv=RUN0EDIT_DEBUG=1", args_debug.argument_list())
+
+    def test_no_prompt_arg(self, mock_find_cmd):
+        """Should set environment variable with no_prompt option"""
+        mock_find_cmd.side_effect = lambda cmd: cmd
+        args_debug = run0edit.build_run0_arguments("foo", "bar", "baz", no_prompt=True)
+        self.assertIn("--setenv=RUN0EDIT_NO_PROMPT=1", args_debug.argument_list())
 
 
 class TestPrintErr(unittest.TestCase):
@@ -726,7 +731,7 @@ class TestRun(unittest.TestCase):
 class TestParseArguments(unittest.TestCase):
     """Tests for parse_arguments"""
 
-    USAGE_TEXT: str = "usage: run0edit [-h] [-v] [--editor EDITOR] FILE [FILE ...]"
+    USAGE_TEXT: str = "usage: run0edit [-h] [-v] [--editor EDITOR] [--no-prompt] FILE [FILE ...]"
     DESCRIPTION: str = "run0edit allows a permitted user to edit a file as root."
 
     @mock.patch("sys.argv", [])
@@ -907,7 +912,8 @@ class TestMain(unittest.TestCase):
         self.assertEqual(run0edit.main(), 0)
         paths = ("path1", "path2")
         self.assertEqual(
-            mock_run.call_args_list, [((path, editor), {"debug": False}) for path in paths]
+            mock_run.call_args_list,
+            [((path, editor), {"debug": False, "no_prompt": False}) for path in paths],
         )
         self.assertEqual(mock_editor_path.call_count, 1)
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -953,6 +959,6 @@ class TestMain(unittest.TestCase):
         mock_run.side_effect = run0edit.CommandNotFoundError("foo")
         with self.assertRaisesRegex(run0edit.CommandNotFoundError, "foo"):
             run0edit.main()
-        self.assertEqual(mock_run.call_args.kwargs, {"debug": True})
+        self.assertEqual(mock_run.call_args.kwargs, {"debug": True, "no_prompt": False})
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertEqual(mock_stderr.getvalue(), "run0edit: command `foo` not found\n")

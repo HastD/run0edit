@@ -122,7 +122,7 @@ def find_command(command: str) -> str:
 
 def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str, None]:
     """Run command as subprocess."""
-    run_args = [find_command(cmd)] + list(args)
+    run_args = [find_command(cmd), *args]
     try:
         result = subprocess.run(
             run_args, check=True, shell=False, capture_output=capture_output, text=capture_output
@@ -373,29 +373,29 @@ class InvalidArgumentsError(Exception):
     """Arguments to script are invalid."""
 
 
-def parse_args(args: Sequence[str]) -> tuple[str, str, str, bool]:
+def parse_args(args: Sequence[str]) -> tuple[str, str, str]:
     """Parse command-line arguments, raising error if too few or too many."""
     if len(args) < 3:
         print("run0edit_inner.py: Error: too few arguments")
         raise InvalidArgumentsError
-    debug_str = "--debug"
-    debug = len(args) == 4 and args[3] == debug_str
-    if (len(args) == 4 and args[3] != debug_str) or len(args) > 4:
+    if len(args) > 3:
         print("run0edit_inner.py: Error: too many arguments")
         raise InvalidArgumentsError
-    return args[0], args[1], args[2], debug
+    return args[0], args[1], args[2]
 
 
 def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
     """Main function."""
     try:
-        original_file, temp_file, editor, debug = parse_args(args)
+        original_file, temp_file, editor = parse_args(args)
     except InvalidArgumentsError:
         return 2
     if uid is None:
         uid = int(os.environ["SUDO_UID"])
+    debug = os.environ.get("RUN0EDIT_DEBUG") == "1"
+    prompt_immutable = os.environ.get("RUN0EDIT_NO_PROMPT") != "1"
     try:
-        run(original_file, temp_file, editor, uid)
+        run(original_file, temp_file, editor, uid, prompt_immutable=prompt_immutable)
     except Run0editError:
         if debug:
             raise

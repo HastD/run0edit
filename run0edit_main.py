@@ -60,7 +60,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "057c16a1f2aae66370f9b79629f3bddfcf1cb82fed1a4e0f13c05a357dda9cd8"
+INNER_SCRIPT_SHA256: Final[str] = "3281c78607aae474e043d2353e3b956eaf77e9ee0304a0028b44ad9f9d128a3c"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -291,32 +291,39 @@ class Run0Arguments:
     systemd_properties: list[str]
     command: str
     command_args: list[str]
+    setenv: dict[str, str] = dataclasses.field(default_factory=dict)
     _run0_cmd: str = dataclasses.field(default_factory=lambda: find_command("run0"))
 
     def argument_list(self) -> list[str]:
         """Build the argument list that can be executed."""
         args = [self._run0_cmd, f"--description={self.description}"]
         args += [f"--property={prop}" for prop in self.systemd_properties]
+        for key, value in self.setenv.items():
+            args.append(f"--setenv={key}={value}")
         args += ["--", self.command] + self.command_args
         return args
 
 
 def build_run0_arguments(
-    path: str, temp_path: str, editor: str, *, debug: bool = False
+    path: str, temp_path: str, editor: str, *, debug: bool = False, no_prompt: bool = False
 ) -> Run0Arguments:
     """Construct the arguments to be passed to run0."""
     python_cmd = find_command("python3")
     rw_path = sandbox_path(path)
     rw_path_prop = f'ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"'
-    systemd_properties = SYSTEMD_SANDBOX_PROPERTIES + [rw_path_prop]
+    systemd_properties = [*SYSTEMD_SANDBOX_PROPERTIES, rw_path_prop]
     python_args = [INNER_SCRIPT_PATH, path, temp_path, editor]
+    setenv = {}
     if debug:
-        python_args.append("--debug")
+        setenv["RUN0EDIT_DEBUG"] = "1"
+    if no_prompt:
+        setenv["RUN0EDIT_NO_PROMPT"] = "1"
     return Run0Arguments(
         description=f'run0edit "{path}"',
         systemd_properties=systemd_properties,
         command=python_cmd,
         command_args=python_args,
+        setenv=setenv,
     )
 
 
@@ -351,7 +358,7 @@ def validate_path(path: str):
         raise InvalidPathError(f"{path} is on a read-only filesystem.")
 
 
-def run(path: str, editor: str, *, debug: bool = False) -> int:
+def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False) -> int:
     """Main program to run for a given file."""
     path = os.path.realpath(path)
     try:
@@ -360,7 +367,7 @@ def run(path: str, editor: str, *, debug: bool = False) -> int:
         print_err(e.reason)
         return 1
     temp_file = TempFile(path)
-    run0_args = build_run0_arguments(path, temp_file.path, editor, debug=debug)
+    run0_args = build_run0_arguments(path, temp_file.path, editor, debug=debug, no_prompt=no_prompt)
     env = os.environ.copy()
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
@@ -386,6 +393,11 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--editor", help="absolute path to text editor (optional)")
+    parser.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="skip confirmation prompt for editing immutable files",
+    )
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
     return parser.parse_args()
@@ -407,7 +419,7 @@ def main() -> int:
     exit_code = 0
     for path in args.paths:
         try:
-            exit_code = run(path, editor, debug=args.debug)
+            exit_code = run(path, editor, debug=args.debug, no_prompt=args.no_prompt)
         except CommandNotFoundError as e:
             print_err(f"command `{e.args[0]}` not found")
             if args.debug:
