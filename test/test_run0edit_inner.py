@@ -8,7 +8,8 @@ import unittest
 from unittest import mock
 
 import run0edit_inner as inner
-from . import new_test_file, remove_test_file, new_test_dir, remove_test_dir
+
+from . import new_test_dir, new_test_file, remove_test_dir, remove_test_file
 
 
 class TestRunCommand(unittest.TestCase):
@@ -707,7 +708,7 @@ class TestMain(unittest.TestCase):
         mock_parse_args.return_value = self.ARGS
         inner.main(mock.sentinel.main_args)
         self.assertEqual(mock_parse_args.call_args, ((mock.sentinel.main_args,), {}))
-        self.assertEqual(mock_run.call_args, (tuple([*self.ARGS, 42]), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
 
     @mock.patch("run0edit_inner.parse_args")
     def test_invalid_args(self, mock_parse_args, mock_run):
@@ -719,18 +720,18 @@ class TestMain(unittest.TestCase):
     def test_normal_run(self, mock_run):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS), 0)
-        self.assertEqual(mock_run.call_args, (tuple([*self.ARGS, 42]), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
 
     def test_normal_run_with_uid(self, mock_run):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS, uid=5), 0)
-        self.assertEqual(mock_run.call_args, (tuple([*self.ARGS, 5]), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, ((*self.ARGS, 5), {"prompt_immutable": True}))
 
     def test_failed_run(self, mock_run):
         """Should pass correct args to run and return 1"""
         mock_run.side_effect = inner.Run0editError
         self.assertEqual(inner.main(self.ARGS), 1)
-        self.assertEqual(mock_run.call_args, (tuple([*self.ARGS, 42]), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
 
     @mock.patch.dict("os.environ", {"RUN0EDIT_DEBUG": "1"})
     def test_failed_run_debug(self, mock_run):
@@ -738,4 +739,4 @@ class TestMain(unittest.TestCase):
         mock_run.side_effect = inner.Run0editError
         with self.assertRaises(inner.Run0editError):
             inner.main(self.ARGS)
-        self.assertEqual(mock_run.call_args, (tuple([*self.ARGS, 42]), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))

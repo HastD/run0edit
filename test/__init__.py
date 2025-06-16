@@ -5,7 +5,6 @@
 import os
 import shutil
 import tempfile
-
 from typing import Final, Union
 
 TEMP_FILE_PREFIX: Final[str] = "run0edit-unittest-"
@@ -34,8 +33,7 @@ def remove_test_file(path: str):
 
 def new_test_dir() -> str:
     """Make a temporary directory."""
-    path = tempfile.mkdtemp(prefix=TEMP_FILE_PREFIX)
-    return path
+    return tempfile.mkdtemp(prefix=TEMP_FILE_PREFIX)
 
 
 def remove_test_dir(path: str):

@@ -10,7 +10,8 @@ import unittest
 from unittest import mock
 
 import run0edit_main as run0edit
-from . import new_test_file, remove_test_file, new_test_dir, remove_test_dir
+
+from . import new_test_dir, new_test_file, remove_test_dir, remove_test_file
 
 
 class TestGlobalConstants(unittest.TestCase):
@@ -530,11 +531,12 @@ class TestPrintErr(unittest.TestCase):
     @mock.patch("sys.stderr", new_callable=io.StringIO)
     def test_print_err(self, mock_stderr):
         """Should output text to stderr with word wrapping"""
+        MAX_WIDTH = 80
         text = "Lorem ipsum dolor sit amet " * 10
         run0edit.print_err(text)
         output = mock_stderr.getvalue()
         self.assertTrue(output.startswith("run0edit: "))
-        self.assertTrue(max(len(line) for line in output.split("\n")) <= 80)
+        self.assertTrue(max(len(line) for line in output.split("\n")) <= MAX_WIDTH)
         unwrapped = output.replace("\n", " ")
         self.assertEqual(unwrapped.removeprefix("run0edit: ").strip(), text.strip())
 

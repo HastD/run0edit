@@ -1,11 +1,11 @@
-name: Python linters
+name: Ruff (Python linter/formatter)
 on: [push]
 
 permissions: {}
 
 jobs:
-  pylint:
-    name: Pylint
+  ruff:
+    name: Ruff
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -23,50 +23,6 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pylint
-
-      - name: Run Pylint
-        run: pylint $(git ls-files '*.py')
-
-  pyupgrade:
-    name: Pyupgrade
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyupgrade
-
-      - name: Run Pyupgrade
-        run: |
-          PATH="$HOME/.local/bin:$PATH"
-          pyupgrade --py39-plus $(git ls-files '*.py')
-
-  ruff:
-    name: Ruff
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
           pip install ruff
 
       - name: Run Ruff
@@ -74,47 +30,3 @@ jobs:
 
       - name: Check code formatting
         run: ruff format --diff
-
-  bandit:
-    name: Bandit
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install bandit
-
-      - name: Run Bandit
-        run: bandit $(git ls-files '*.py')
-
-  lizard:
-    name: Lizard (code complexity check)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Install Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install lizard
-
-      - name: Run lizard
-        run: |
-          PATH="$HOME/.local/bin:$PATH"
-          lizard -C8 -L40 -a8 -Tnloc=40

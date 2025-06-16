@@ -48,19 +48,18 @@ import enum
 import hashlib
 import os
 import pathlib
-import stat
 import shutil
+import stat
 import subprocess  # nosec
 import sys
-import textwrap
 import tempfile
-
+import textwrap
 from collections.abc import Sequence
 from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "3281c78607aae474e043d2353e3b956eaf77e9ee0304a0028b44ad9f9d128a3c"
+INNER_SCRIPT_SHA256: Final[str] = "28cdaace9d062f9a3d7281e3b747ed60be4fac5241440850c5ff33447c011272"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -300,7 +299,7 @@ class Run0Arguments:
         args += [f"--property={prop}" for prop in self.systemd_properties]
         for key, value in self.setenv.items():
             args.append(f"--setenv={key}={value}")
-        args += ["--", self.command] + self.command_args
+        args += ["--", self.command, *self.command_args]
         return args
 
 
@@ -372,7 +371,8 @@ def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False)
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
     process = subprocess.run(run0_args.argument_list(), env=env, check=False)  # nosec
-    if process.returncode == 226:
+    SYSTEMD_EXIT_NAMESPACE = 226
+    if process.returncode == SYSTEMD_EXIT_NAMESPACE:
         # If directory does not exist, namespace creation will fail, causing
         # run0 to fail with exit status 226:
         # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html

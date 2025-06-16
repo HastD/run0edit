@@ -45,11 +45,10 @@ limitations under the License.
 import filecmp
 import os
 import resource
-import stat
 import shutil
+import stat
 import subprocess  # nosec
 import sys
-
 from collections.abc import Sequence
 from typing import Union
 
@@ -375,10 +374,11 @@ class InvalidArgumentsError(Exception):
 
 def parse_args(args: Sequence[str]) -> tuple[str, str, str]:
     """Parse command-line arguments, raising error if too few or too many."""
-    if len(args) < 3:
+    EXPECTED_LEN_ARGS = 3
+    if len(args) < EXPECTED_LEN_ARGS:
         print("run0edit_inner.py: Error: too few arguments")
         raise InvalidArgumentsError
-    if len(args) > 3:
+    if len(args) > EXPECTED_LEN_ARGS:
         print("run0edit_inner.py: Error: too many arguments")
         raise InvalidArgumentsError
     return args[0], args[1], args[2]
