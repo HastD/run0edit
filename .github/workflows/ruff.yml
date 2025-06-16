@@ -1,4 +1,4 @@
-name: Ruff (Python linter/formatter)
+name: Ruff (Python linter)
 on: [push]
 
 permissions: {}

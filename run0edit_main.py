@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""
+r"""
 run0edit - edit a single file as root.
 
 Please report issues at: https://github.com/HastD/run0edit/issues
@@ -59,7 +59,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.0"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "28cdaace9d062f9a3d7281e3b747ed60be4fac5241440850c5ff33447c011272"
+INNER_SCRIPT_SHA256: Final[str] = "b261a1e8f8cc1c06d87f48c46edc510dcdd916723eb6ce6dfb5f914318df4996"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -116,7 +116,6 @@ def validate_inner_script() -> bool:
 
 def readonly_filesystem(path: str) -> Union[bool, None]:
     """Determine if the path is on a read-only filesystem."""
-    # pylint: disable=duplicate-code
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
     except OSError:
@@ -129,7 +128,6 @@ class CommandNotFoundError(Exception):
 
 def find_command(command: str) -> str:
     """Search for command using a default path."""
-    # pylint: disable=duplicate-code
     cmd_path = shutil.which(command, path="/usr/bin:/bin")
     if cmd_path is None:
         raise CommandNotFoundError(command)
@@ -226,7 +224,7 @@ class PathExists(enum.Enum):
     MAYBE = enum.auto()
 
     @classmethod
-    def from_bool(cls, cond: bool):
+    def from_bool(cls, cond: bool) -> "PathExists":
         """Convert bool to PathExists"""
         return cls.YES if cond else cls.NO
 
@@ -265,7 +263,7 @@ class TempFile:
         name = os.path.basename(filename)
         self.path = tempfile.mkstemp(prefix=f"{name:.64}.", dir=self.directory)[1]
 
-    def remove(self, *, only_if_empty: bool = False):
+    def remove(self, *, only_if_empty: bool = False) -> None:
         """Delete the temporary file"""
         if not only_if_empty or os.path.getsize(self.path) == 0:
             os.remove(self.path)
@@ -326,7 +324,7 @@ def build_run0_arguments(
     )
 
 
-def print_err(message: str):
+def print_err(message: str) -> None:
     """Print error message to stderr with text wrapping."""
     text = textwrap.fill("run0edit: " + textwrap.dedent(message.strip("\n")), width=80)
     print(text, file=sys.stderr)
@@ -341,7 +339,7 @@ class InvalidPathError(Exception):
         return str(self.args[0] if self.args else "invalid path")
 
 
-def validate_path(path: str):
+def validate_path(path: str) -> None:
     """Raise an InvalidPathError if path is invalid and we should return early."""
     if os.path.isdir(path):
         raise InvalidPathError(f"{path} is a directory.")

@@ -35,9 +35,10 @@ Rewrote script in Python.
 ### Testing and CI
 
 - Added unit tests with 100% test coverage.
-- Added GitHub workflows that automatically run Ruff, PyLint (for all Python
-  versions 3.9 through 3.13), Bandit, Lizard, the unit tests, and a unit test
-  coverage check on every pushed commit.
+- Added GitHub workflows that automatically run Ruff (including Flake8, Pylint,
+  McCabe complexity checker, and Bandit lints) for all Python versions 3.9
+  through 3.13, mypy, the unit tests, and a unit test coverage check on every
+  pushed commit.
 
 ## [v0.4.4] - 2025-05-22
 

@@ -13,6 +13,13 @@ license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 Repository = "https://github.com/HastD/run0edit"
 Issues = "https://github.com/HastD/run0edit/issues"
 
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "test.*"
+disallow_untyped_defs = false
+
 [tool.ruff]
 line-length = 100
 
@@ -57,3 +64,9 @@ pylint.max-statements = 30
 [tool.ruff.lint.per-file-ignores]
 # Ignore "too many function arguments" and "private member accessed" in tests
 "test/**.py" = ["PLR0913", "SLF001"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.16.0",
+    "ruff>=0.11.13",
+]

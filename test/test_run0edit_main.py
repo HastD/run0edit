@@ -7,6 +7,8 @@ import io
 import os
 import pathlib
 import unittest
+from collections.abc import Callable, Sequence
+from typing import Any
 from unittest import mock
 
 import run0edit_main as run0edit
@@ -212,7 +214,7 @@ class TestHandleEditorSelection(unittest.TestCase):
     @mock.patch("sys.stderr", new_callable=io.StringIO)
     def test_handle_errors(self, mock_stderr, mock_get_editor):
         """Should print expected messages in response to errors"""
-        error_patterns = {
+        error_patterns: dict[type[run0edit.EditorSelectionError], str] = {
             run0edit.EditorNotFoundError: r"^run0edit: Editor not found\. Please install either ",
             run0edit.InvalidEditorConfError: r"^run0edit: Configuration file has an invalid ",
             run0edit.InvalidProvidedEditorError: r"^run0edit: --editor must be an absolute path ",
@@ -463,10 +465,10 @@ class TestBuildRun0Arguments(unittest.TestCase):
     """Tests for build_run0_arguments"""
 
     @staticmethod
-    def mock_cmd_not_found(not_found_cmd: str):
+    def mock_cmd_not_found(not_found_cmd: str) -> Callable[[str], str]:
         """Mock function to emulate a command not being found."""
 
-        def _mock_cmd_not_found_inner(cmd: str):
+        def _mock_cmd_not_found_inner(cmd: str) -> str:
             if cmd == not_found_cmd:
                 raise run0edit.CommandNotFoundError(cmd)
             return f"/usr/bin/{cmd}"
@@ -487,7 +489,6 @@ class TestBuildRun0Arguments(unittest.TestCase):
 
     def test_args(self, mock_find_cmd):
         """Should return expected arguments"""
-        # pylint: disable=protected-access
         mock_find_cmd.side_effect = lambda cmd: f"/usr/bin/{cmd}"
         path = new_test_file()
         temp_path = "/path/to/temp/file"
@@ -598,7 +599,7 @@ class TestValidatePath(unittest.TestCase):
 
     def test_success(self):
         """Should succeed (returning None) if path is valid"""
-        self.assertIsNone(run0edit.validate_path(self.path))
+        run0edit.validate_path(self.path)
 
 
 @mock.patch("subprocess.run")
@@ -671,7 +672,7 @@ class TestRun(unittest.TestCase):
         self.assertEqual(env.get("SYSTEMD_ADJUST_TERMINAL_TITLE"), "false")
 
     @staticmethod
-    def mock_editor_process(args, **_) -> int:
+    def mock_editor_process(args: Sequence[str], **_: Any) -> int:
         """Mock subprocess.run that writes text to temp file"""
         text = os.environ.get("MOCK_TEXT")
         if text is not None:
@@ -863,7 +864,6 @@ class TestMain(unittest.TestCase):
         self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
     ):
         """Should use valid editor passed as command-line argument"""
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
         mock_valid_exe.return_value = True
         run0edit.main()
         self.assertEqual(mock_valid_exe.call_args.args, ("/usr/bin/butterfly",))
@@ -880,7 +880,6 @@ class TestMain(unittest.TestCase):
         self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
     ):
         """Should fail if invalid editor passed as command-line argument"""
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
         mock_valid_exe.return_value = False
         self.assertEqual(run0edit.main(), 1)
         self.assertEqual(mock_valid_exe.call_args.args, ("/etc/hosts",))

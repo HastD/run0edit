@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""
+r"""
 Inner script for run0edit. Not meant to be run directly.
 
 Please report issues at: https://github.com/HastD/run0edit/issues
@@ -103,7 +103,6 @@ class FileContentsMismatchError(Run0editError):
 
 def readonly_filesystem(path: str) -> Union[bool, None]:
     """Determine if the path is on a read-only filesystem."""
-    # pylint: disable=duplicate-code
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
     except OSError:
@@ -112,7 +111,6 @@ def readonly_filesystem(path: str) -> Union[bool, None]:
 
 def find_command(command: str) -> str:
     """Search for command using a default path."""
-    # pylint: disable=duplicate-code
     cmd_path = shutil.which(command, path="/usr/bin:/bin")
     if cmd_path is None:
         raise CommandNotFoundError(command)
@@ -129,7 +127,7 @@ def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str
     except subprocess.CalledProcessError as e:
         raise SubprocessError from e
     if capture_output:
-        return result.stdout
+        return str(result.stdout)
     return None
 
 
@@ -213,7 +211,7 @@ def handle_check_readonly(path: str, is_dir: bool, *, prompt_immutable: bool = T
         raise
 
 
-def copy_file_contents(src: str, dest: str, *, create: bool):
+def copy_file_contents(src: str, dest: str, *, create: bool) -> None:
     """
     Copy contents of src to dest. Does not copy metadata. `create` argument
     specifies whether dest *must* be newly created or *must not* be created.
@@ -237,7 +235,7 @@ def copy_file_contents(src: str, dest: str, *, create: bool):
         raise FileCopyError from e
 
 
-def run_chattr(attribute: str, path: str):
+def run_chattr(attribute: str, path: str) -> None:
     """Run chattr to apply attribute to path (if not None). Raises ChattrError if fails."""
     try:
         run_command("chattr", attribute, "--", path)
@@ -245,7 +243,9 @@ def run_chattr(attribute: str, path: str):
         raise ChattrError from e
 
 
-def copy_to_immutable_original(original_file: str, temp_file: str, *, original_file_exists: bool):
+def copy_to_immutable_original(
+    original_file: str, temp_file: str, *, original_file_exists: bool
+) -> None:
     """
     Copy the contents of the temp file to the target file, manipulating the immutable attribute.
     """
@@ -266,7 +266,7 @@ def copy_to_immutable_original(original_file: str, temp_file: str, *, original_f
 
 def copy_to_original(
     original_file: str, temp_file: str, *, original_file_exists: bool, immutable: bool
-):
+) -> None:
     """
     Copy the contents of the temp file to the target file, manipulating the
     immutable attribute if necessary.
@@ -292,7 +292,7 @@ def should_copy_to_original(
 
 def handle_copy_to_original(
     original_file: str, temp_file: str, *, original_file_exists: bool, immutable: bool
-):
+) -> None:
     """
     If the target file exists and has been modified in the temp file, or
     if this is a new file that is non-empty, copy temp file to target.
@@ -323,7 +323,7 @@ def handle_copy_to_original(
         raise
 
 
-def run_editor(*, uid: int, editor: str, path: str):
+def run_editor(*, uid: int, editor: str, path: str) -> None:
     """Run the editor as the given UID to edit the file at the given path."""
     try:
         run_command("run0", f"--user={uid}", "--", editor, path)
@@ -337,7 +337,7 @@ def run_editor(*, uid: int, editor: str, path: str):
 
 def run(
     original_file: str, temp_file: str, editor: str, uid: int, *, prompt_immutable: bool = True
-):
+) -> None:
     """
     Copy file to temp file, run editor, and copy temp file back to target file.
     Raises Run0editError if a step fails.

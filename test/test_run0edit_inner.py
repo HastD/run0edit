@@ -259,7 +259,7 @@ class TestHandleCheckReadonly(TestCaseWithFiles):
     @mock.patch("sys.stdout", new_callable=io.StringIO)
     def test_error_messages(self, mock_stdout, mock_check_ro):
         """Should print appropriate error messages and re-raise exceptions"""
-        errors = {
+        errors: dict[type[inner.Run0editError], str] = {
             inner.ReadOnlyFilesystemError: "read-only filesystem",
             inner.ReadOnlyImmutableError: "user declined to remove immutable",
             inner.ReadOnlyOtherError: "is read-only",
@@ -509,7 +509,7 @@ class TestHandleCopyToOriginal(TestCaseWithFiles):
     @mock.patch("run0edit_inner.copy_to_original")
     def test_error_messages(self, mock_copy, mock_chattr, mock_stdout):
         """Should print appropriate error messages and re-raise exceptions"""
-        errors = {
+        errors: dict[type[inner.Run0editError], str] = {
             inner.FileCopyError: "unable to copy contents of temporary file",
             inner.ChattrError: "failed to run chattr",
             inner.FileContentsMismatchError: "does not match contents of edited tempfile",
@@ -559,7 +559,7 @@ class TestRunEditor(unittest.TestCase):
 class TestRun(TestCaseWithFiles):
     """Tests for run"""
 
-    def edit_temp_file(self, data: bytes):
+    def edit_temp_file(self, data: bytes) -> None:
         """Helper method to simulate the user editing the temp file"""
         with open(self.temp_filename, "wb") as f:
             f.write(data)
@@ -573,7 +573,6 @@ class TestRun(TestCaseWithFiles):
         self, m_realpath, m_exists, m_check_ro, m_copy_file, m_copy_orig, m_run_editor, m_stdout
     ):
         """Should pass correct arguments to functions"""
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
         s = mock.sentinel
         m_realpath.return_value = s.realpath
         m_exists.return_value = True

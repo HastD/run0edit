@@ -1,7 +1,9 @@
 .actrc
 .artifacts
 .coverage
+.mypy_cache
 .pyc
 .ruff_cache
 .venv
 __pycache__
+uv.lock
