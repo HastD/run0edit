@@ -113,7 +113,7 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
             run0edit.get_editor_path_from_conf()
-        self.assertEqual(mock_open.call_args.args, (run0edit.DEFAULT_CONF_PATH, "r"))
+        self.assertEqual(mock_open.call_args.args, (run0edit.DEFAULT_CONF_PATH,))
 
     @mock.patch("run0edit_main.open", create=True)
     def test_provided_conf_path(self, mock_open):
@@ -121,7 +121,7 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
             run0edit.get_editor_path_from_conf(conf_path="/some/other/path.conf")
-        self.assertEqual(mock_open.call_args.args, ("/some/other/path.conf", "r"))
+        self.assertEqual(mock_open.call_args.args, ("/some/other/path.conf",))
 
     @mock.patch("run0edit_main.find_command")
     def test_read_conf_path_valid(self, mock_find_cmd):

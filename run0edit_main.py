@@ -166,7 +166,7 @@ def get_editor_path_from_conf(
 ) -> str:
     """Get path to editor executable."""
     try:
-        with open(conf_path, "r", encoding="utf8") as f:
+        with open(conf_path, encoding="utf8") as f:
             editor = f.read().strip()
     except OSError:
         pass
