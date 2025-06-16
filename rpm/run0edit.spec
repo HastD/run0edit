@@ -1,5 +1,5 @@
 Name:           run0edit
-Version:        0.4.4
+Version:        0.5.0
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -8,8 +8,9 @@ URL:            https://github.com/HastD/%{name}
 Source:         %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
-BuildRequires:  python3
-Requires:       systemd >= 248
+Requires:       python3 >= 3.9
+Requires:       systemd >= 256
+Recommends:     e2fsprogs
 
 %description
 %{name} is to run0 what sudoedit is to sudo.
@@ -24,45 +25,22 @@ copied back to the original location when the editor is closed.
 %autosetup
 
 %build
-python3 build.py
 
 %install
-mkdir -p %{buildroot}%{_bindir} %{buildroot}%{_sysconfdir}/%{name}
-install -m 755 %{name} %{buildroot}%{_bindir}/%{name}
+mkdir -m 755 -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/%{name} %{buildroot}%{_sysconfdir}/%{name}
+install -m 755 %{name}_main.py %{buildroot}%{_bindir}/%{name}
+install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner.py
 
 %files
 %{_bindir}/%{name}
+%{_libexecdir}/%{name}
 
 %changelog
-* Thu May 22 2025 - v0.4.4:
-  - Fixed bug in immutable flag parsing.
-  - Added RPM spec.
-  - Added CI workflow to build .rpm and .deb packages.
-* Sat May 17 2025 - v0.4.3:
-  - Refactored to reduce code duplication and make control flow clearer.
-  - Separated out the main script and outer script to separate files, with a
-    Python build script to reassemble them for installation.
-  - Improved message text.
-* Thu May 15 2025 - v0.4.1:
-  - Support immutable flag on directory as well.
-* Wed May 14 2025 - v0.4.0:
-  - Added support for editing files with the immutable flag set by temporarily
-    removing the flag and reapplying it afterward.
-  - Parse arguments according to shell utility conventions, including --help
-    and --version arguments with -h and -v short forms.
-* Mon Mar 17 2025 - v0.3.3:
-  - Refactored inner script for clarity.
-  - Improved sandboxing logic.
-  - Bail out early if target file is read-only.
-  - Style fixes to pass ShellCheck linter.
-* Sun Mar 16 2025 - v0.3.1:
-  - Fixed handling of files in locations not readable by the user.
-  - Reset PATH to default value for security.
-  - Improved error messages and handling of editor selection.
-* Thu Mar 13 2025 - v0.2.0:
-  - Switched to config files instead of environment variable for text editor selection.
-  - Added systemd sandboxing to inner privileged script.
-* Mon Mar 10 2025 - v0.1.1:
-  - Improved error messages, added --help command.
-* Fri Feb 21 2025 - v0.1.0:
-  - Initial release.
+* Thu Jun 19 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
+  - Update to version 0.5.0
+  - Python rewrite: install Python scripts in place of old shell script
+  - Fix systemd and Python version requirements
+  - Add `Recommends: e2fsprogs` for immutable attribute support.
+  - Remove `BuildRequires: python3` as there's no longer a build process.
+* Thu May 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.4.4
+  - Initial RPM release

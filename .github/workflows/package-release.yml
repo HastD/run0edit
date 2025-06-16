@@ -1,13 +1,16 @@
 name: Build Linux packages & prepare release
 on: workflow_dispatch
 
+permissions: {}
+
 jobs:
   build_source_archive:
-    name: Build script and source archive
-    runs-on: ubuntu-latest
+    name: Build source archive
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Parse version number
         run: |
@@ -21,37 +24,29 @@ jobs:
           tar -cvf "run0edit-$VERSION.tar.gz" "run0edit-$VERSION"
 
       - name: Upload source as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: source-archive
           path: run0edit-*.tar.gz
 
-      - name: Build script
-        run: python3 ./build.py
-
-      - name: Upload script as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: run0edit
-          path: run0edit
-
   build_rpm:
     name: Build RPM package
     needs: build_source_archive
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
-      image: almalinux:latest
+      image: almalinux@sha256:3a11f19acf607c4248bc448010009208f1fddc0289f78e32e513d97821eef080 # v9.6
     steps:
       - name: Install dependencies
         run: |
           dnf install -y nodejs python3 rpmdevtools rpmlint
           rpmdev-setuptree
 
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Retrieve source archive
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: source-archive
           path: ~/rpmbuild/SOURCES
@@ -63,14 +58,14 @@ jobs:
         run: rpmbuild -ba -v rpm/run0edit.spec
 
       - name: Upload SRPM as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: srpm
           path: ~/rpmbuild/SRPMS/run0edit-*.src.rpm
           if-no-files-found: error
 
       - name: Upload RPM as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rpm
           path: ~/rpmbuild/RPMS/noarch/run0edit-*.noarch.rpm
@@ -79,10 +74,10 @@ jobs:
   build_deb:
     name: Build .deb package
     needs: build_rpm
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Retrieve RPM
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: rpm
 
@@ -93,7 +88,7 @@ jobs:
           sudo alien -dkv run0edit-*.noarch.rpm
 
       - name: Upload .deb as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: deb
           path: run0edit_*.deb
@@ -102,13 +97,15 @@ jobs:
     name: Release
     needs: [build_source_archive, build_rpm, build_deb]
     if: github.triggering_actor == 'HastD'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Retrieve all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
 
       - name: Create draft release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631  # v2.2.2
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           draft: true
           files: |
