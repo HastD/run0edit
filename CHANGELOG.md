@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.5.0] - 2025-06-16
 
 Rewrote script in Python.
 
@@ -91,7 +91,7 @@ Rewrote script in Python.
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.4.4...HEAD
+[v0.5.0]: https://github.com/HastD/run0edit/compare/v0.4.4...v0.5.0
 [v0.4.4]: https://github.com/HastD/run0edit/compare/v0.4.3...v0.4.4
 [v0.4.3]: https://github.com/HastD/run0edit/compare/v0.4.1...v0.4.3
 [v0.4.1]: https://github.com/HastD/run0edit/compare/v0.4.0...v0.4.1

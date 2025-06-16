@@ -36,7 +36,7 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %{_libexecdir}/%{name}
 
 %changelog
-* Thu Jun 19 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
+* Mon Jun 16 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
   - Update to version 0.5.0
   - Python rewrite: install Python scripts in place of old shell script
   - Fix systemd and Python version requirements
