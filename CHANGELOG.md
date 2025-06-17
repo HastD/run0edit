@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+- Warn about likely incorrect usage when the user passes multiple positional
+  arguments with the first looking like a command. (For example, if a user runs
+  `run0edit vim /path/to/file`, they are likely _not_ intending to edit a file
+  at `./vim` and then a second file; it's likely intended to be
+  `run0edit --editor /usr/bin/vim /path/to/file` or just
+  `run0edit /path/to/file`.)
+
 ## [v0.5.0] - 2025-06-16
 
 Rewrote script in Python.
@@ -91,6 +100,7 @@ Rewrote script in Python.
 
 - Initial release.
 
+[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.0...HEAD
 [v0.5.0]: https://github.com/HastD/run0edit/compare/v0.4.4...v0.5.0
 [v0.4.4]: https://github.com/HastD/run0edit/compare/v0.4.3...v0.4.4
 [v0.4.3]: https://github.com/HastD/run0edit/compare/v0.4.1...v0.4.3
