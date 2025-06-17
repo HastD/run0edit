@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.5.1] - 2025-06-17
 
 - Warn about likely incorrect usage when the user passes multiple positional
   arguments with the first looking like a command. (For example, if a user runs
@@ -100,7 +100,7 @@ Rewrote script in Python.
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.0...HEAD
+[v0.5.1]: https://github.com/HastD/run0edit/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/HastD/run0edit/compare/v0.4.4...v0.5.0
 [v0.4.4]: https://github.com/HastD/run0edit/compare/v0.4.3...v0.4.4
 [v0.4.3]: https://github.com/HastD/run0edit/compare/v0.4.1...v0.4.3
