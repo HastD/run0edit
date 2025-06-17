@@ -1,0 +1,37 @@
+name: Integration tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+
+permissions: {}
+
+jobs:
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Pull container image
+        run: podman pull ghcr.io/hastd/run0edit-test-env@sha256:c36fcc65504d4e39038163230672cc53f0b1afa52fe82cc8f2fbf57779b48fcb
+
+      - name: Start container
+        id: start
+        run: |
+          podman run -d --name run0edit-test-env --systemd=always \
+            --mount=type=bind,src="$(pwd)",dst=/home/tester,relabel=shared \
+            ghcr.io/hastd/run0edit-test-env@sha256:c36fcc65504d4e39038163230672cc53f0b1afa52fe82cc8f2fbf57779b48fcb
+
+      - name: Enable passwordless run0
+        # This is a bit of a hack and effectively gives every user root access.
+        # There's probably a better way to do this but it's just for a testing
+        # environment where we'd normally be running as root anyway.
+        run: podman exec run0edit-test-env chmod 4755 /usr/bin/systemd-run
+
+      - name: Run integration tests
+        run: podman exec --user=tester run0edit-test-env python3 -m unittest test/integration_tests.py
