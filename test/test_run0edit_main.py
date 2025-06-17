@@ -816,6 +816,69 @@ class TestParseArguments(unittest.TestCase):
 
 @mock.patch("sys.stderr", new_callable=io.StringIO)
 @mock.patch("sys.stdout", new_callable=io.StringIO)
+class TestCatchUsageMistake(unittest.TestCase):
+    """Tests for catch_usage_mistake"""
+
+    FIRST_PATH: str = "sh"
+
+    def test_no_prompt(self, mock_stdout, mock_stderr):
+        """Should do nothing with prompt=False"""
+        run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=False)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    def test_one_path(self, mock_stdout, mock_stderr):
+        """Should do nothing if only one path"""
+        run0edit.catch_usage_mistake([self.FIRST_PATH], prompt=True)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    def test_path_sep_in_first_path(self, mock_stdout, mock_stderr):
+        """Should do nothing if path separator in first path"""
+        run0edit.catch_usage_mistake([f"./{self.FIRST_PATH}", "asdf"], prompt=True)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    def test_first_path_not_command(self, mock_stdout, mock_stderr):
+        """Should do nothing if first path does not resolve to command"""
+        run0edit.catch_usage_mistake(["thisisnotacommand", "asdf"], prompt=True)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("run0edit_main.input", create=True)
+    def test_first_path_is_command_response_yes(self, mock_input, mock_stdout, mock_stderr):
+        """
+        Should print warning message and prompt for user input, returning normally if
+        user response is "yes"
+        """
+        mock_input.return_value = "yes"
+        run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=True)
+        self.assertEqual(
+            mock_input.call_args,
+            ((f"\nDo you really want to edit the file ./{self.FIRST_PATH}? [y/N] ",), {}),
+        )
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertIn(
+            f"Warning: `{self.FIRST_PATH}` looks like an executable command. ",
+            mock_stderr.getvalue(),
+        )
+
+    @mock.patch("run0edit_main.input", create=True)
+    def test_first_path_is_command_response_no(self, mock_input, mock_stdout, mock_stderr):
+        """Should raise expected exception if user gives empty/negative response"""
+        mock_input.return_value = ""
+        with self.assertRaises(run0edit.UsageError):
+            run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=True)
+        self.assertTrue(mock_input.called)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertIn(
+            f"Warning: `{self.FIRST_PATH}` looks like an executable command. ",
+            mock_stderr.getvalue(),
+        )
+
+
+@mock.patch("sys.stderr", new_callable=io.StringIO)
+@mock.patch("sys.stdout", new_callable=io.StringIO)
 @mock.patch("run0edit_main.run")
 class TestMain(unittest.TestCase):
     """Tests for main"""
@@ -855,6 +918,18 @@ class TestMain(unittest.TestCase):
             mock_stderr.getvalue().replace("\n", " "),
             "^run0edit: ERROR: Inner script was not found .* or did not have expected SHA-256 hash",
         )
+
+    @mock.patch("sys.argv", ["run0edit", "nano", "asdf"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
+    @mock.patch("run0edit_main.catch_usage_mistake")
+    def test_catches_usage_mistake(self, mock_catch_usage, mock_run, mock_stdout, mock_stderr):
+        """Should return 2 if usage error reported"""
+        mock_catch_usage.side_effect = run0edit.UsageError
+        self.assertEqual(run0edit.main(), 2)
+        self.assertEqual(mock_catch_usage.call_args, ((["nano", "asdf"],), {"prompt": True}))
+        self.assertFalse(mock_run.called)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)

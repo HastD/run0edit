@@ -57,7 +57,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import Final, Union
 
-__version__: Final[str] = "0.5.0"
+__version__: Final[str] = "0.5.1"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_SHA256: Final[str] = "b261a1e8f8cc1c06d87f48c46edc510dcdd916723eb6ce6dfb5f914318df4996"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
@@ -391,14 +391,34 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--editor", help="absolute path to text editor (optional)")
-    parser.add_argument(
-        "--no-prompt",
-        action="store_true",
-        help="skip confirmation prompt for editing immutable files",
-    )
+    parser.add_argument("--no-prompt", action="store_true", help="skip confirmation prompts")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
     return parser.parse_args()
+
+
+class UsageError(Exception):
+    """Incorrect usage of run0edit command."""
+
+
+def catch_usage_mistake(paths: list[str], *, prompt: bool = True) -> None:
+    """
+    Check if the user has likely made a usage mistake by passing an executable as the
+    first argument.
+    """
+    if not prompt or len(paths) <= 1:
+        return
+    arg = paths[0]
+    if os.sep in arg or shutil.which(arg) is None:
+        return
+    print_err(f"""
+        Warning: `{arg}` looks like an executable command. If you intended to run {arg}
+        as a text editor, use the --editor option or (to make it the default) write its
+        absolute path to {DEFAULT_CONF_PATH}.
+    """)
+    response = input(f"\nDo you really want to edit the file ./{arg}? [y/N] ")
+    if not response.lower().startswith("y"):
+        raise UsageError
 
 
 def main() -> int:
@@ -410,6 +430,10 @@ def main() -> int:
             have expected SHA-256 hash!
         """)
         return 1
+    try:
+        catch_usage_mistake(args.paths, prompt=not args.no_prompt)
+    except UsageError:
+        return 2
     try:
         editor = handle_editor_selection(provided_editor=args.editor)
     except EditorSelectionError:
