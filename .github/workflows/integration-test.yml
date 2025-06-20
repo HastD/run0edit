@@ -58,7 +58,7 @@ jobs:
           IGNITION_DIR="/var/lib/libvirt/boot"
           IGNITION_FILE="${IGNITION_DIR}/config.ign"
           sudo mkdir -p "${IGNITION_DIR}"
-          sudo butane --pretty --strict config.bu >"${IGNITION_FILE}"
+          sudo butane --pretty --strict config.bu | sudo tee "${IGNITION_FILE}" > /dev/null
           sudo chown libvirt-qemu:kvm "${IGNITION_FILE}"
           sudo chmod 644 "${IGNITION_FILE}"
 
