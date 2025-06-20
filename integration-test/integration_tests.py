@@ -11,7 +11,7 @@ import unittest
 from typing import Final, Union
 
 RUN0: Final[str] = "/usr/bin/run0"
-EDITOR: Final[str] = os.path.realpath("./test/mock-editor.sh")
+EDITOR: Final[str] = os.path.realpath("./integration-test/mock-editor.sh")
 EDITED_TEXT: Final[str] = "~~~edited text~~~"
 
 
