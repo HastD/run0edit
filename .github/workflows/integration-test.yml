@@ -5,6 +5,7 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["**"]
+  workflow_dispatch:
 
 permissions: {}
 
@@ -12,26 +13,149 @@ jobs:
   integration:
     name: Integration tests
     runs-on: ubuntu-24.04
+
+    env:
+      VM_NAME: "coreos"
+      VCPUS: "3"
+      RAM_MB: "8192"
+      STREAM: "stable"
+      VM_IP: "192.168.122.2"
+      VM_INTERFACE: "enp1s0"
+      VM_DNS: "1.1.1.1;1.0.0.1"
+      DISK_GB: "10"
+
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - name: Pull container image
-        run: podman pull ghcr.io/hastd/run0edit-test-env@sha256:c36fcc65504d4e39038163230672cc53f0b1afa52fe82cc8f2fbf57779b48fcb
-
-      - name: Start container
-        id: start
+      - name: Install dependencies
         run: |
-          podman run -d --name run0edit-test-env --systemd=always \
-            --mount=type=bind,src="$(pwd)",dst=/home/tester,relabel=shared \
-            ghcr.io/hastd/run0edit-test-env@sha256:c36fcc65504d4e39038163230672cc53f0b1afa52fe82cc8f2fbf57779b48fcb
+          sudo apt update
+          sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virtinst podman apparmor-utils
 
-      - name: Enable passwordless run0
-        # This is a bit of a hack and effectively gives every user root access.
-        # There's probably a better way to do this but it's just for a testing
-        # environment where we'd normally be running as root anyway.
-        run: podman exec run0edit-test-env chmod 4755 /usr/bin/systemd-run
+      - name: Configure AppArmor and libvirt
+        run: |
+          IGNITION_DIR_RULE='owner "/var/lib/libvirt/boot/**" r,'
+          echo "${IGNITION_DIR_RULE}" | sudo tee -a /etc/apparmor.d/abstractions/libvirt-qemu
+          sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.libvirtd
+          sudo systemctl restart libvirtd
+          sudo usermod -aG kvm,libvirt "${USER}"
 
-      - name: Run integration tests
-        run: podman exec --user=tester run0edit-test-env python3 -m unittest test/integration_tests.py
+      - name: Install Butane
+        run: |
+          VERSION="v0.24.0"
+          URL="https://github.com/coreos/butane/releases/download/${VERSION}/butane-x86_64-unknown-linux-gnu"
+          TEMP_FILE=$(mktemp butane-XXXXXXXX)
+          wget -q "${URL}" -O "${TEMP_FILE}"
+          sudo install -m 755 "${TEMP_FILE}" /usr/local/bin/butane
+          rm "${TEMP_FILE}"
+
+      - name: Create Ignition config and set permissions
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PUBLIC_KEY }}
+        run: |
+          IGNITION_DIR="/var/lib/libvirt/boot"
+          IGNITION_FILE="${IGNITION_DIR}/config.ign"
+          sudo mkdir -p "${IGNITION_DIR}"
+
+          cat <<EOF > config.bu
+          variant: fcos
+          version: 1.6.0
+          passwd:
+            users:
+              - name: tester
+                groups:
+                  - wheel
+                ssh_authorized_keys:
+                  - "${SSH_PUBLIC_KEY}"
+          storage:
+            files:
+              - path: /etc/NetworkManager/system-connections/static.nmconnection
+                mode: 0600
+                contents:
+                  inline: |
+                    [connection]
+                    id=static-${VM_INTERFACE}
+                    type=ethernet
+                    interface-name=${VM_INTERFACE}
+                    [ipv4]
+                    method=manual
+                    addresses=${VM_IP}/24
+                    gateway=192.168.122.1
+                    dns=${VM_DNS}
+                    [ipv6]
+                    method=disabled
+              - path: /etc/polkit-1/rules.d/10-systemd-nopasswd.rules
+                mode: 0600
+                contents:
+                  inline: |
+                    polkit.addRule(function(action, subject) {
+                        if (action.id == "org.freedesktop.systemd1.manage-units") {
+                            if (subject.isInGroup("wheel")) {
+                                return polkit.Result.YES;
+                            }
+                        }
+                    });
+          EOF
+
+          sudo butane --pretty --strict config.bu | sudo tee "${IGNITION_FILE}" > /dev/null
+          sudo chown libvirt-qemu:kvm "${IGNITION_FILE}"
+          sudo chmod 644 "${IGNITION_FILE}"
+
+      - name: Download Fedora CoreOS image
+        id: download_image
+        run: |
+          DOWNLOAD_DIR="/tmp"
+          IMAGE_FILENAME=$(sudo podman run --pull=always --rm -v "${DOWNLOAD_DIR}:/data" -w /data \
+            quay.io/coreos/coreos-installer:release download -s "${STREAM}" -p qemu -f qcow2.xz --decompress)
+          TEMP_IMAGE_PATH="${DOWNLOAD_DIR}/${IMAGE_FILENAME}"
+          echo "image_path=${TEMP_IMAGE_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create and start VM
+        env:
+          IMAGE_PATH: ${{ steps.download_image.outputs.image_path }}
+        run: |
+          IGNITION_CONFIG="/var/lib/libvirt/boot/config.ign"
+          IGNITION_DEVICE_ARG=(--qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=${IGNITION_CONFIG}")
+
+          sudo virt-install \
+            --connect="qemu:///system" \
+            --name="${VM_NAME}" \
+            --vcpus="${VCPUS}" \
+            --memory="${RAM_MB}" \
+            --os-variant="fedora-coreos-${STREAM}" \
+            --import \
+            --graphics=none \
+            --disk="size=${DISK_GB},backing_store=${IMAGE_PATH}" \
+            --network network=default \
+            "${IGNITION_DEVICE_ARG[@]}" \
+            --noautoconsole
+
+      - name: Wait for VM startup
+        run: |
+          sleep 120
+
+      - name: Set up and run integration tests
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          SSH_PRIVATE_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -m 700 -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
+
+          RUN_INTEGRATION_TESTS=$(cat <<'EOF'
+          set -eu
+          REPOSITORY_URL="https://github.com/${1}.git"
+          REF_NAME="${2}"
+          git clone --depth 1 -b "${REF_NAME}" "${REPOSITORY_URL}"
+          cd run0edit
+          python3 -m unittest test/integration_tests.py
+          EOF
+          )
+
+          ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "tester@${VM_IP}" \
+            bash -c "${RUN_INTEGRATION_TESTS}" "${REPOSITORY}" "${REF_NAME}"
