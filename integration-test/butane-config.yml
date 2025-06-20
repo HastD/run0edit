@@ -33,6 +33,10 @@ storage:
     - path: /home/core/run0edit
       local: run0edit
   files:
+    - path: /home/core/run0edit/run0edit-local
+      mode: 0755
+    - path: /home/core/run0edit/integration-test/mock-editor.sh
+      mode: 0755
     - path: /etc/NetworkManager/system-connections/static.nmconnection
       mode: 0600
       contents:
