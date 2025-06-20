@@ -23,7 +23,8 @@ def cmd(name: str) -> str:
 def run0edit(*args: str) -> None:
     """Call run0edit with the provided arguments"""
     subprocess.run(
-        ["./run0edit-local", f"--editor={EDITOR}", "--no-prompt", "--", *args], check=True
+        ["./run0edit-local", f"--editor={EDITOR}", "--debug", "--no-prompt", "--", *args],
+        check=True,
     )  # nosec
 
 
