@@ -5,13 +5,11 @@ Integration tests for run0edit. Meant to run in a VM or container environment
 with passwordless run0.
 """
 
-import os
 import subprocess  # nosec
 import unittest
 from typing import Final, Union
 
 RUN0: Final[str] = "/usr/bin/run0"
-EDITOR: Final[str] = os.path.realpath("./integration-test/mock-editor.sh")
 EDITED_TEXT: Final[str] = "~~~edited text~~~"
 
 
@@ -23,7 +21,7 @@ def cmd(name: str) -> str:
 def run0edit(*args: str) -> None:
     """Call run0edit with the provided arguments"""
     subprocess.run(
-        ["./run0edit-local", f"--editor={EDITOR}", "--debug", "--no-prompt", "--", *args],
+        ["./run0edit-local", "--debug", "--no-prompt", "--", *args],
         check=True,
     )  # nosec
 
