@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          path: run0edit
 
       - name: Install dependencies
         run: |
@@ -70,6 +71,9 @@ jobs:
                 ssh_authorized_keys:
                   - "${SSH_PUBLIC_KEY}"
           storage:
+            trees:
+              - path: /home/tester/run0edit
+                local: run0edit
             files:
               - path: /etc/NetworkManager/system-connections/static.nmconnection
                 mode: 0600
@@ -136,29 +140,17 @@ jobs:
         run: |
           sleep 120
 
-      - name: Set up and run integration tests
+      - name: Run integration tests
         env:
-          REPOSITORY: ${{ github.repository }}
-          REF_NAME: ${{ github.ref_name }}
           SSH_PRIVATE_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PRIVATE_KEY }}
         run: |
           mkdir -m 700 -p ~/.ssh
           echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
-
-          RUN_INTEGRATION_TESTS=$(cat <<EOF
-          set -eux
-          REPOSITORY_URL="https://github.com/${REPOSITORY}.git"
-          git clone --depth 1 -b "${REF_NAME}" "${REPOSITORY_URL}" run0edit
-          cd run0edit
-          python3 -m unittest test/integration_tests.py
-          EOF
-          )
-
           ssh \
             -o ConnectTimeout=20 \
             -o StrictHostKeyChecking=no \
             -i ~/.ssh/id_ed25519 \
             "tester@${VM_IP}" \
-            bash -c "${RUN_INTEGRATION_TESTS}"
+            "cd /home/tester/run0edit; python3 -m unittest test/integration_tests.py"
