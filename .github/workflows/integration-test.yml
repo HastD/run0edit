@@ -147,15 +147,18 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
 
-          RUN_INTEGRATION_TESTS=$(cat <<'EOF'
-          set -eu
-          REPOSITORY_URL="https://github.com/${1}.git"
-          REF_NAME="${2}"
-          git clone --depth 1 -b "${REF_NAME}" "${REPOSITORY_URL}"
+          RUN_INTEGRATION_TESTS=$(cat <<EOF
+          set -eux
+          REPOSITORY_URL="https://github.com/${REPOSITORY}.git"
+          git clone --depth 1 -b "${REF_NAME}" "${REPOSITORY_URL}" run0edit
           cd run0edit
           python3 -m unittest test/integration_tests.py
           EOF
           )
 
-          ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "tester@${VM_IP}" \
-            bash -c "${RUN_INTEGRATION_TESTS}" "${REPOSITORY}" "${REF_NAME}"
+          ssh \
+            -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=no \
+            -i ~/.ssh/id_ed25519 \
+            "tester@${VM_IP}" \
+            bash -c "${RUN_INTEGRATION_TESTS}"
