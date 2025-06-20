@@ -9,6 +9,10 @@ on:
 
 permissions: {}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   integration:
     name: Integration tests
@@ -54,11 +58,12 @@ jobs:
         env:
           SSH_PUBLIC_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PUBLIC_KEY }}
         run: |
+          set -euo pipefail
           envsubst <run0edit/integration-test/butane-config.yml >config.bu
           IGNITION_DIR="/var/lib/libvirt/boot"
           IGNITION_FILE="${IGNITION_DIR}/config.ign"
           sudo mkdir -p "${IGNITION_DIR}"
-          sudo butane --pretty --strict config.bu | sudo tee "${IGNITION_FILE}" > /dev/null
+          sudo butane --pretty --strict -d . config.bu | sudo tee "${IGNITION_FILE}" > /dev/null
           sudo chown libvirt-qemu:kvm "${IGNITION_FILE}"
           sudo chmod 644 "${IGNITION_FILE}"
 
