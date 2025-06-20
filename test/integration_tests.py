@@ -8,7 +8,6 @@ with passwordless run0.
 import os
 import subprocess  # nosec
 import unittest
-
 from typing import Final, Union
 
 RUN0: Final[str] = "/usr/bin/run0"
@@ -21,7 +20,7 @@ def cmd(name: str) -> str:
     return f"/usr/bin/{name}"
 
 
-def run0edit(*args: str):
+def run0edit(*args: str) -> None:
     """Call run0edit with the provided arguments"""
     subprocess.run(
         ["./run0edit-local", f"--editor={EDITOR}", "--no-prompt", "--", *args], check=True
