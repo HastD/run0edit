@@ -7,6 +7,27 @@ passwd:
         - wheel
       ssh_authorized_keys:
         - "${SSH_PUBLIC_KEY}"
+systemd:
+  units:
+    - name: rpm-ostree-install-python.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Layer python3 with rpm-ostree
+        Wants=network-online.target
+        After=network-online.target
+        Before=zincati.service
+        ConditionPathExists=!/var/lib/%N.stamp
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/rpm-ostree install -y --allow-inactive python3
+        ExecStart=/bin/touch /var/lib/%N.stamp
+        ExecStart=/bin/systemctl --no-block reboot
+
+        [Install]
+        WantedBy=multi-user.target
 storage:
   trees:
     - path: /home/core/run0edit

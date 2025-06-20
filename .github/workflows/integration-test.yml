@@ -98,9 +98,9 @@ jobs:
 
       - name: Wait for VM startup
         run: |
-          sleep 60
+          sleep 120
 
-      - name: Install securecore and reboot
+      - name: Run integration tests
         env:
           SSH_PRIVATE_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PRIVATE_KEY }}
         run: |
@@ -109,13 +109,4 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
           ssh -o ConnectTimeout=60 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@"${VM_IP}" \
-            'systemctl disable --now zincati; rpm-ostree install -r python3' || true
-
-      - name: Wait for VM reboot
-        run: |
-          sleep 30
-
-      - name: Run integration tests
-        run: |
-          ssh -o ConnectTimeout=60 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@"${VM_IP}" \
-            'cd /home/core/run0edit; python3 -m unittest test/integration_tests.py'
+            'cd /home/core/run0edit; python3 -m unittest integration-test/integration_tests.py'
