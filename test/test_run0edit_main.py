@@ -45,7 +45,7 @@ class TestGlobalConstants(unittest.TestCase):
 
     def test_systemd_sandbox_properties(self):
         """SYSTEMD_SANDBOX_PROPERTIES should have expected number and format of items"""
-        self.assertEqual(len(run0edit.SYSTEMD_SANDBOX_PROPERTIES), 26)
+        self.assertEqual(len(run0edit.SYSTEMD_SANDBOX_PROPERTIES), 25)
         for prop in run0edit.SYSTEMD_SANDBOX_PROPERTIES:
             self.assertIsInstance(prop, str)
             self.assertIn("=", prop)
