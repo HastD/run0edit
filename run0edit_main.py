@@ -59,7 +59,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.1"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "b261a1e8f8cc1c06d87f48c46edc510dcdd916723eb6ce6dfb5f914318df4996"
+INNER_SCRIPT_SHA256: Final[str] = "d87a2d54f665e9a9cfd83ce7f9e8e3b852ab6c22fc62f1209c4523424bfc3161"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
