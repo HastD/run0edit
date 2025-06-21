@@ -1,0 +1,65 @@
+variant: fcos
+version: 1.6.0
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+      ssh_authorized_keys:
+        - "${SSH_PUBLIC_KEY}"
+systemd:
+  units:
+    - name: rpm-ostree-install-python.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Layer python3 with rpm-ostree
+        Wants=network-online.target
+        After=network-online.target
+        Before=zincati.service
+        ConditionPathExists=!/var/lib/%N.stamp
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/rpm-ostree install -y --allow-inactive python3
+        ExecStart=/bin/touch /var/lib/%N.stamp
+        ExecStart=/bin/systemctl --no-block reboot
+
+        [Install]
+        WantedBy=multi-user.target
+storage:
+  trees:
+    - path: /home/core/run0edit
+      local: run0edit
+  files:
+    - path: /home/core/run0edit/run0edit-local
+      mode: 0755
+    - path: /home/core/run0edit/integration-test/mock-editor.sh
+      mode: 0755
+    - path: /etc/NetworkManager/system-connections/static.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=static-enp1s0
+          type=ethernet
+          interface-name=enp1s0
+          [ipv4]
+          method=manual
+          addresses=192.168.122.2/24
+          gateway=192.168.122.1
+          dns=1.1.1.1;1.0.0.1
+          [ipv6]
+          method=disabled
+    - path: /etc/polkit-1/rules.d/10-systemd-nopasswd.rules
+      mode: 0640
+      group:
+        name: polkitd
+      contents:
+        inline: |
+          polkit.addRule(function(action, subject) {
+              if (subject.isInGroup("wheel")) {
+                  return polkit.Result.YES;
+              }
+          });

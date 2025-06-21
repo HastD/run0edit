@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Fixed issue with SELinux denying certain custom editors set via `--editor`.
+- Added integration tests.
 
 ## [v0.5.1] - 2025-06-17
 

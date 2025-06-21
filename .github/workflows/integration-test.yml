@@ -1,0 +1,112 @@
+name: Integration tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+
+    env:
+      VM_NAME: "coreos"
+      VCPUS: "3"
+      RAM_MB: "8192"
+      STREAM: "stable"
+      VM_IP: "192.168.122.2"
+      DISK_GB: "10"
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          path: run0edit
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y apparmor-utils libvirt-clients libvirt-daemon-system podman qemu-system-x86 virtinst
+
+      - name: Configure AppArmor and libvirt
+        run: |
+          IGNITION_DIR_RULE='owner "/var/lib/libvirt/boot/**" r,'
+          echo "${IGNITION_DIR_RULE}" | sudo tee -a /etc/apparmor.d/abstractions/libvirt-qemu
+          sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.libvirtd
+          sudo systemctl restart libvirtd
+          sudo usermod -aG kvm,libvirt "${USER}"
+
+      - name: Install Butane
+        run: |
+          VERSION="v0.24.0"
+          URL="https://github.com/coreos/butane/releases/download/${VERSION}/butane-x86_64-unknown-linux-gnu"
+          TEMP_FILE=$(mktemp butane-XXXXXXXX)
+          wget -q "${URL}" -O "${TEMP_FILE}"
+          sudo install -m 755 "${TEMP_FILE}" /usr/local/bin/butane
+          rm "${TEMP_FILE}"
+
+      - name: Create Ignition config and set permissions
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          envsubst <run0edit/integration-test/butane-config.yml >config.bu
+          IGNITION_DIR="/var/lib/libvirt/boot"
+          IGNITION_FILE="${IGNITION_DIR}/config.ign"
+          sudo mkdir -p "${IGNITION_DIR}"
+          sudo butane --pretty --strict -d . config.bu | sudo tee "${IGNITION_FILE}" > /dev/null
+          sudo chown libvirt-qemu:kvm "${IGNITION_FILE}"
+          sudo chmod 644 "${IGNITION_FILE}"
+
+      - name: Download Fedora CoreOS image
+        id: download_image
+        run: |
+          DOWNLOAD_DIR="/tmp"
+          IMAGE_FILENAME=$(sudo podman run --pull=always --rm -v "${DOWNLOAD_DIR}:/data" -w /data \
+            quay.io/coreos/coreos-installer:release download -s "${STREAM}" -p qemu -f qcow2.xz --decompress)
+          TEMP_IMAGE_PATH="${DOWNLOAD_DIR}/${IMAGE_FILENAME}"
+          echo "image_path=${TEMP_IMAGE_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create and start VM
+        env:
+          IMAGE_PATH: ${{ steps.download_image.outputs.image_path }}
+        run: |
+          IGNITION_CONFIG="/var/lib/libvirt/boot/config.ign"
+          IGNITION_DEVICE_ARG=(--qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=${IGNITION_CONFIG}")
+
+          sudo virt-install \
+            --connect="qemu:///system" \
+            --name="${VM_NAME}" \
+            --vcpus="${VCPUS}" \
+            --memory="${RAM_MB}" \
+            --os-variant="fedora-coreos-${STREAM}" \
+            --import \
+            --graphics=none \
+            --disk="size=${DISK_GB},backing_store=${IMAGE_PATH}" \
+            --network network=default \
+            "${IGNITION_DEVICE_ARG[@]}" \
+            --noautoconsole
+
+      - name: Wait for VM startup
+        run: |
+          sleep 180
+
+      - name: Run integration tests
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -m 700 -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
+          ssh -o ConnectTimeout=60 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@"${VM_IP}" \
+            'cd /home/core/run0edit; python3 -m unittest integration-test/integration_tests.py'

@@ -20,6 +20,10 @@ strict = true
 module = "test.*"
 disallow_untyped_defs = false
 
+[[tool.mypy.overrides]]
+module = "integration_tests"
+disallow_untyped_defs = false
+
 [tool.ruff]
 line-length = 100
 

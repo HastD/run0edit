@@ -4,6 +4,7 @@
 .mypy_cache
 .pyc
 .ruff_cache
+.ssh
 .venv
 __pycache__
 uv.lock
