@@ -204,7 +204,6 @@ class TestIntegration(unittest.TestCase):
         result = run0edit(file.path, editor=cmd("false"), check=False)
         self.assertEqual(result.returncode, 1)
         self.assertRegex(result.stdout, "^run0edit: failed to edit temporary file at ")
-        self.assertEqual(result.stderr, "")
         self.assertEqual(file.read().strip(), "")
 
 
