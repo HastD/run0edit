@@ -326,7 +326,8 @@ def handle_copy_to_original(
 def run_editor(*, uid: int, editor: str, path: str) -> None:
     """Run the editor as the given UID to edit the file at the given path."""
     try:
-        run_command("run0", f"--user={uid}", "--", editor, path)
+        sh = find_command("sh")
+        run_command("run0", f"--user={uid}", "--", sh, "-c", '"$1" "$2"', sh, editor, path)
     except CommandNotFoundError as e:
         print("run0edit: failed to call run0 to start editor")
         raise EditTempFileError from e

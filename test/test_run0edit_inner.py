@@ -531,12 +531,17 @@ class TestHandleCopyToOriginal(TestCaseWithFiles):
 class TestRunEditor(unittest.TestCase):
     """Tests for run_editor"""
 
-    def test_check_args(self, mock_run_cmd, mock_stdout):
+    @mock.patch("run0edit_inner.find_command")
+    def test_check_args(self, mock_find_cmd, mock_run_cmd, mock_stdout):
         """Should pass correct arguments to run_command"""
         editor = mock.sentinel.editor
         path = mock.sentinel.path
+        mock_find_cmd.side_effect = lambda cmd: f"/bin/{cmd}"
         inner.run_editor(uid=42, editor=editor, path=path)
-        self.assertEqual(mock_run_cmd.call_args.args, ("run0", "--user=42", "--", editor, path))
+        self.assertEqual(
+            mock_run_cmd.call_args.args,
+            ("run0", "--user=42", "--", "/bin/sh", "-c", '"$1" "$2"', "/bin/sh", editor, path),
+        )
         self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_error_messages(self, mock_run_cmd, mock_stdout):
