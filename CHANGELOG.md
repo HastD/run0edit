@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 
-- Fixed issue with SELinux denying certain custom editors set via `--editor`.
-- Added integration tests.
+- Fixed sandbox bug that was preventing creating new files directly in `/root`
+  or `/home` on systems where those directories are not symlinks. (#11)
+- Fixed issue with SELinux denying certain custom editors set via `--editor`. (#9)
+- Added integration tests. (#8)
 
 ## [v0.5.1] - 2025-06-17
 
@@ -12,11 +14,11 @@
   `run0edit vim /path/to/file`, they are likely _not_ intending to edit a file
   at `./vim` and then a second file; it's likely intended to be
   `run0edit --editor /usr/bin/vim /path/to/file` or just
-  `run0edit /path/to/file`.)
+  `run0edit /path/to/file`.) (#6)
 
 ## [v0.5.0] - 2025-06-16
 
-Rewrote script in Python.
+Rewrote script in Python. (#1)
 
 ### Added
 
