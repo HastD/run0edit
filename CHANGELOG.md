@@ -3,9 +3,11 @@
 ## [Unreleased]
 
 - Fixed sandbox bug that was preventing creating new files directly in `/root`
-  or `/home` on systems where those directories are not symlinks. (#11)
-- Fixed issue with SELinux denying certain custom editors set via `--editor`. (#9)
-- Added integration tests. (#8)
+  or `/home` on systems where those directories are not symlinks.
+  ([#11](https://github.com/HastD/run0edit/pull/11))
+- Fixed issue with SELinux denying certain custom editors set via `--editor`.
+  ([#9](https://github.com/HastD/run0edit/pull/9))
+- Added integration tests. ([#8](https://github.com/HastD/run0edit/pull/8))
 
 ## [v0.5.1] - 2025-06-17
 
@@ -14,11 +16,11 @@
   `run0edit vim /path/to/file`, they are likely _not_ intending to edit a file
   at `./vim` and then a second file; it's likely intended to be
   `run0edit --editor /usr/bin/vim /path/to/file` or just
-  `run0edit /path/to/file`.) (#6)
+  `run0edit /path/to/file`.) ([#6](https://github.com/HastD/run0edit/pull/6))
 
 ## [v0.5.0] - 2025-06-16
 
-Rewrote script in Python. (#1)
+Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 ### Added
 
