@@ -22,11 +22,13 @@ def cmd(name: str) -> str:
     return f"/usr/bin/{name}"
 
 
-def run0edit(*args: str, editor: str = EDITOR) -> subprocess.CompletedProcess[str]:
+def run0edit(
+    *args: str, editor: str = EDITOR, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     """Call run0edit with the provided arguments"""
     return subprocess.run(
         ["./run0edit-local", f"--editor={editor}", "--debug", "--no-prompt", "--", *args],
-        check=True,
+        check=check,
         capture_output=True,
         text=True,
     )  # nosec
@@ -96,8 +98,10 @@ class TestFile:
 
     def __del__(self):
         """Remove the file."""
-        subprocess.run([RUN0, cmd("chattr"), "-R", "-i", "--", self._path], check=False)  # nosec
-        subprocess.run([RUN0, cmd("rm"), "-rf", "--", self._path], check=False)  # nosec
+        subprocess.run(
+            [RUN0, cmd("chattr"), "-R", "-i", "--", self._path], check=False, capture_output=True
+        )  # nosec
+        subprocess.run([RUN0, cmd("rm"), "-rf", "--", self._path], check=False, capture_output=True)  # nosec
 
 
 class TestIntegration(unittest.TestCase):
@@ -162,6 +166,46 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(file.read().strip(), EDITED_TEXT)
         self.assertTrue(directory.is_immutable())
         self.assertFalse(file.is_immutable())
+
+    def test_user_writable_file(self):
+        """Should give expected error if file is user-writable"""
+        file = TestFile(root_owned=False)
+        result = run0edit(file.path, check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(
+            " is writable by the current user; run0edit is unnecessary.",
+            result.stderr.replace("\n", " "),
+        )
+        self.assertEqual(file.read().strip(), "")
+
+    def test_read_only_filesystem(self):
+        """Should give expected error if file is on read-only filesystem"""
+        ro_mount_dir = tempfile.mkdtemp()
+        mount_ro = 'mount --bind -o ro "$1" "$2"'
+        subprocess.run(
+            [RUN0, cmd("sh"), "-c", mount_ro, cmd("sh"), tempfile.gettempdir(), ro_mount_dir],
+            check=True,
+        )
+        file = TestFile(directory=ro_mount_dir, create=False)
+        result = run0edit(file.path, check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr.strip().replace("\n", " "),
+            f"run0edit: {file.path} is on a read-only filesystem.",
+        )
+        subprocess.run([RUN0, cmd("umount"), ro_mount_dir], check=True)
+        os.rmdir(ro_mount_dir)
+
+    def test_editor_fails(self):
+        """Should give expected error if editor fails"""
+        file = TestFile(directory="/var", root_owned=True)
+        result = run0edit(file.path, editor=cmd("false"), check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertRegex(result.stdout, "^run0edit: failed to edit temporary file at ")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(file.read().strip(), "")
 
 
 if __name__ == "__main__":
