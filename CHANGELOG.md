@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.5.2] - 2025-06-21
 
 - Fixed sandbox bug that was preventing creating new files directly in `/root`
   or `/home` on systems where those directories are not symlinks.
@@ -109,7 +109,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.1...HEAD
+[v0.5.2]: https://github.com/HastD/run0edit/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/HastD/run0edit/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/HastD/run0edit/compare/v0.4.4...v0.5.0
 [v0.4.4]: https://github.com/HastD/run0edit/compare/v0.4.3...v0.4.4
