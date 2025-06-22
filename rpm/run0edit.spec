@@ -5,7 +5,7 @@ Summary:        run0edit allows a permitted user to edit a file as root.
 
 License:        Apache-2.0 OR MIT
 URL:            https://github.com/HastD/%{name}
-Source:         %{name}-%{version}.tar.gz
+Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.tar.gz
 
 BuildArch:      noarch
 Requires:       python3 >= 3.9
