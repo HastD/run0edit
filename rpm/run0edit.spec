@@ -1,5 +1,5 @@
 Name:           run0edit
-Version:        0.5.1
+Version:        0.5.2
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -36,6 +36,8 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %{_libexecdir}/%{name}
 
 %changelog
+* Sat Jun 21 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.2
+  - Update to version 0.5.2
 * Tue Jun 17 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.1
   - Update to version 0.5.1
 * Mon Jun 16 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
