@@ -168,7 +168,7 @@ class TestShouldRemoveImmutable(unittest.TestCase):
         path = "/etc"
         for answer in answers:
             result = inner.should_remove_immutable(path, is_dir=True)
-            self.assertEqual(result, answer.lower().startswith("y"))
+            self.assertEqual(result, answer.casefold().startswith("y"))
 
 
 class TestCaseWithFiles(unittest.TestCase):
