@@ -170,7 +170,7 @@ def should_remove_immutable(path: str, is_dir: bool) -> bool:
     else:
         prompt = "Temporarily remove the attribute to edit the file? [y/N] "
     response = input(prompt)
-    return response.lower().startswith("y")
+    return response.casefold().startswith("y")
 
 
 def check_readonly(

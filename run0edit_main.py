@@ -59,7 +59,7 @@ from typing import Final, Union
 
 __version__: Final[str] = "0.5.2"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "d87a2d54f665e9a9cfd83ce7f9e8e3b852ab6c22fc62f1209c4523424bfc3161"
+INNER_SCRIPT_SHA256: Final[str] = "b206d13b19267bab87dc18628462cafb70885076cc0fda7713d9e910600aa787"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -416,7 +416,7 @@ def catch_usage_mistake(paths: list[str], *, prompt: bool = True) -> None:
         absolute path to {DEFAULT_CONF_PATH}.
     """)
     response = input(f"\nDo you really want to edit the file ./{arg}? [y/N] ")
-    if not response.lower().startswith("y"):
+    if not response.casefold().startswith("y"):
         raise UsageError
 
 
