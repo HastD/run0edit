@@ -49,7 +49,7 @@ jobs:
         run: sed -Ei '/^Source0:/s/https:\/\/.*/%{name}-%{version}.tar.gz/' rpm/run0edit.spec
 
       - name: Retrieve source archive
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: source-archive
           path: ~/rpmbuild/SOURCES
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Retrieve RPM
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: rpm
 
@@ -105,7 +105,7 @@ jobs:
       contents: write
     steps:
       - name: Retrieve all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
 
       - name: Create draft release
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
