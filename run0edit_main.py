@@ -147,6 +147,10 @@ class EditorNotFoundError(EditorSelectionError):
     """Could not find a valid editor."""
 
 
+class UnreadableEditorConfError(EditorSelectionError):
+    """Editor conf file exists but is unreadable by the current user."""
+
+
 class InvalidEditorConfError(EditorSelectionError):
     """Editor path in conf file is invalid."""
 
@@ -155,24 +159,24 @@ class InvalidProvidedEditorError(EditorSelectionError):
     """Provided editor path is invalid."""
 
 
-def get_editor_path_from_conf(
-    *,
-    conf_path: str = DEFAULT_CONF_PATH,
-    fallbacks: Union[Sequence[str], None] = None,
-) -> str:
-    """Get path to editor executable."""
+def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> Union[str, None]:
+    """Get path to editor executable from conf file."""
     try:
         with open(conf_path, encoding="utf8") as f:
             editor = f.read().strip()
+    except PermissionError as e:
+        raise UnreadableEditorConfError from e
     except OSError:
-        pass
-    else:
-        if not editor:
-            pass
-        elif is_valid_executable(editor):
-            return editor
-        else:
-            raise InvalidEditorConfError(editor)
+        return None
+    if not editor:
+        return None
+    if not is_valid_executable(editor):
+        raise InvalidEditorConfError(editor)
+    return editor
+
+
+def get_fallback_editor_path(fallbacks: Union[Sequence[str], None] = None) -> Union[str, None]:
+    """Get fallback editor path."""
     if fallbacks is None:
         fallbacks = ("nano", "vi")
     for fallback in fallbacks:
@@ -180,16 +184,22 @@ def get_editor_path_from_conf(
             return find_command(fallback)
         except CommandNotFoundError:
             pass
-    raise EditorNotFoundError
+    return None
 
 
 def get_editor_path(provided_editor: Union[str, None] = None) -> str:
-    """Get the editor path from either a provided path or conf file."""
-    if provided_editor is None:
-        return get_editor_path_from_conf()
-    if not is_valid_executable(provided_editor):
-        raise InvalidProvidedEditorError(provided_editor)
-    return os.path.realpath(provided_editor)
+    """Get the editor path from a provided path, conf file, or fallback."""
+    if provided_editor is not None:
+        if not is_valid_executable(provided_editor):
+            raise InvalidProvidedEditorError(provided_editor)
+        return os.path.realpath(provided_editor)
+    editor = get_editor_path_from_conf()
+    if editor is not None:
+        return editor
+    editor = get_fallback_editor_path()
+    if editor is not None:
+        return editor
+    raise EditorNotFoundError
 
 
 def handle_editor_selection(provided_editor: Union[str, None] = None) -> str:
@@ -200,6 +210,13 @@ def handle_editor_selection(provided_editor: Union[str, None] = None) -> str:
         print_err(f"""
             Editor not found. Please install either nano or vi, or write the path to
             the text editor of your choice to {DEFAULT_CONF_PATH}
+        """)
+        raise
+    except UnreadableEditorConfError:
+        print_err(f"""
+            Configuration file exists but is unreadable. Please fix the permissions on
+            {DEFAULT_CONF_PATH} to make the file readable by all users. You may also use
+            the --editor option to specify the editor to use for a single run of run0edit.
         """)
         raise
     except InvalidEditorConfError:
