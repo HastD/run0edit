@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.5.3] - 2025-08-18
+
+- If `/etc/run0edit/editor.conf` exists but is unreadable due to a permission
+  error, exit with an error informing the user of the issue. Previously this was
+  silently ignored and `run0edit` would just use a fallback editor, which was
+  confusing behavior. ([#17](https://github.com/HastD/run0edit/pull/17))
+- fix: `casefold()` instead of `lower()` for case-insensitive equality.
+  ([#14](https://github.com/HastD/run0edit/pull/14))
+- build: use remote source in RPM spec. This simplifies Copr builds since they
+  can use the spec file directly instead of an SRPM.
+  ([#13](https://github.com/HastD/run0edit/pull/13))
+
 ## [v0.5.2] - 2025-06-21
 
 - Fixed sandbox bug that was preventing creating new files directly in `/root`
@@ -109,6 +121,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.5.3]: https://github.com/HastD/run0edit/compare/v0.5.2...v0.5.3
 [v0.5.2]: https://github.com/HastD/run0edit/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/HastD/run0edit/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/HastD/run0edit/compare/v0.4.4...v0.5.0
