@@ -1,6 +1,6 @@
 [project]
 name = "run0edit"
-version = "0.5.2"
+version = "0.5.3"
 requires-python = ">= 3.9"
 authors = [{name = "Daniel Hast"}]
 maintainers = [{name = "Daniel Hast"}]
