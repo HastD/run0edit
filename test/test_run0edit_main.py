@@ -123,80 +123,107 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         """Should check provided configuration path"""
         mock_open.side_effect = Exception("mock open")
         with self.assertRaisesRegex(Exception, "mock open"):
-            run0edit.get_editor_path_from_conf(conf_path="/some/other/path.conf")
+            run0edit.get_editor_path_from_conf("/some/other/path.conf")
         self.assertEqual(mock_open.call_args.args, ("/some/other/path.conf",))
 
-    @mock.patch("run0edit_main.find_command")
-    def test_read_conf_path_valid(self, mock_find_cmd):
+    def test_read_conf_path_valid(self):
         """Should read and validate editor path from conf file"""
         conf = new_test_file(b"/bin/true\n")
-        editor = run0edit.get_editor_path_from_conf(conf_path=conf)
+        editor = run0edit.get_editor_path_from_conf(conf)
         self.assertEqual(editor, "/bin/true")
-        self.assertFalse(mock_find_cmd.called)
         remove_test_file(conf)
 
     def test_read_conf_path_empty(self):
-        """Should read and reject bad editor path from conf file"""
+        """Should ignore empty conf file"""
         conf = new_test_file(b"\n")
-        with self.assertRaises(run0edit.EditorNotFoundError):
-            run0edit.get_editor_path_from_conf(conf_path=conf, fallbacks=())
+        self.assertIsNone(run0edit.get_editor_path_from_conf(conf))
         remove_test_file(conf)
 
     def test_read_conf_path_invalid(self):
         """Should read and reject bad editor path from conf file"""
         conf = new_test_file(b"/dev/null")
         with self.assertRaises(run0edit.InvalidEditorConfError):
-            run0edit.get_editor_path_from_conf(conf_path=conf)
+            run0edit.get_editor_path_from_conf(conf)
         remove_test_file(conf)
 
-    @mock.patch("run0edit_main.find_command")
-    def test_read_bad_conf_path(self, mock_find_cmd):
-        """Should skip over unreadable conf file"""
+    def test_read_missing_conf_file(self):
+        """Should skip over missing conf file"""
         conf = new_test_file()
         remove_test_file(conf)
-        run0edit.get_editor_path_from_conf(conf_path=conf)
-        self.assertTrue(mock_find_cmd.called)
+        self.assertIsNone(run0edit.get_editor_path_from_conf(conf))
+
+    @mock.patch("run0edit_main.open", create=True)
+    def test_unreadable_conf_file(self, mock_open):
+        """Should raise error if conf file exists but is unreadable"""
+        mock_open.side_effect = PermissionError
+        with self.assertRaises(run0edit.UnreadableEditorConfError):
+            run0edit.get_editor_path_from_conf()
+
+
+class TestGetFallbackEditorPath(unittest.TestCase):
+    """Tests for get_fallback_editor_path"""
 
     @mock.patch("run0edit_main.find_command")
     def test_default_fallbacks(self, mock_find_cmd):
         """
-        Should try to find expected default fallback editors, and raise exception if none found
+        Should try to find expected default fallback editors, and return None if none found
         """
         mock_find_cmd.side_effect = run0edit.CommandNotFoundError
-        with self.assertRaises(run0edit.EditorNotFoundError):
-            run0edit.get_editor_path_from_conf(conf_path="/dev/null")
+        self.assertIsNone(run0edit.get_fallback_editor_path())
         expected = ("nano", "vi")
         self.assertEqual(mock_find_cmd.call_args_list, [((cmd,), {}) for cmd in expected])
 
     def test_provided_fallbacks(self):
-        """Should try to find expected default fallback editors, and return None if none found"""
+        """Should return first fallback editor that is a valid command"""
         fallbacks = ("nonexistent-cmd-asdf", "", "true")
-        editor = run0edit.get_editor_path_from_conf(conf_path="/dev/null", fallbacks=fallbacks)
+        editor = run0edit.get_fallback_editor_path(fallbacks=fallbacks)
         self.assertIn(editor, ("/bin/true", "/usr/bin/true"))
 
 
+@mock.patch("run0edit_main.get_fallback_editor_path")
 @mock.patch("run0edit_main.get_editor_path_from_conf")
 class TestGetEditorPath(unittest.TestCase):
     """Tests for get_editor_path"""
 
-    def test_gets_from_conf_if_not_provided(self, mock_from_conf):
-        """Should get editor from conf file if not provided"""
-        editor = mock.sentinel.editor_from_conf
-        mock_from_conf.return_value = editor
-        self.assertEqual(run0edit.get_editor_path(), editor)
-        self.assertEqual(mock_from_conf.call_args_list, [((), {})])
-
-    def test_valid_provided(self, mock_from_conf):
+    def test_valid_provided(self, mock_from_conf, mock_fallback):
         """Should return provided editor path if valid"""
         editor = run0edit.get_editor_path("/bin/true")
         self.assertEqual(editor, os.path.realpath("/bin/true"))
         self.assertFalse(mock_from_conf.called)
+        self.assertFalse(mock_fallback.called)
 
-    def test_invalid_provided(self, mock_from_conf):
+    def test_invalid_provided(self, mock_from_conf, mock_fallback):
         """Should raise exception if provided invalid editor path"""
         with self.assertRaisesRegex(run0edit.InvalidProvidedEditorError, "/dev/null"):
             run0edit.get_editor_path("/dev/null")
         self.assertFalse(mock_from_conf.called)
+        self.assertFalse(mock_fallback.called)
+
+    def test_gets_from_conf_if_not_provided(self, mock_from_conf, mock_fallback):
+        """Should get editor from conf file if not provided"""
+        editor = mock.sentinel.editor_from_conf
+        mock_from_conf.return_value = editor
+        self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_conf.call_args, ((), {}))
+        self.assertFalse(mock_fallback.called)
+
+    def test_gets_fallback_if_no_conf(self, mock_from_conf, mock_fallback):
+        """Should get editor from conf file if not provided"""
+        editor = mock.sentinel.fallback_editor
+        mock_from_conf.return_value = None
+        mock_fallback.return_value = editor
+        self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_conf.call_args, ((), {}))
+        self.assertEqual(mock_fallback.call_args, ((), {}))
+
+    def test_no_conf_no_fallback(self, mock_from_conf, mock_fallback):
+        """Should raise expected error if fallback fails to find editor"""
+        mock_from_conf.return_value = None
+        mock_fallback.return_value = None
+        with self.assertRaises(run0edit.EditorNotFoundError):
+            run0edit.get_editor_path()
+        self.assertEqual(mock_from_conf.call_args, ((), {}))
+        self.assertEqual(mock_fallback.call_args, ((), {}))
 
 
 @mock.patch("run0edit_main.get_editor_path")
@@ -216,6 +243,7 @@ class TestHandleEditorSelection(unittest.TestCase):
         """Should print expected messages in response to errors"""
         error_patterns: dict[type[run0edit.EditorSelectionError], str] = {
             run0edit.EditorNotFoundError: r"^run0edit: Editor not found\. Please install either ",
+            run0edit.UnreadableEditorConfError: r" Configuration file exists but is unreadable\.",
             run0edit.InvalidEditorConfError: r"^run0edit: Configuration file has an invalid ",
             run0edit.InvalidProvidedEditorError: r"^run0edit: --editor must be an absolute path ",
         }
