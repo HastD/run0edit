@@ -10,7 +10,7 @@ import secrets
 import subprocess  # nosec
 import tempfile
 import unittest
-from typing import Final, Union
+from typing import Final
 
 RUN0: Final[str] = "/usr/bin/run0"
 EDITOR: Final[str] = os.path.realpath("./integration-test/mock-editor.sh")
@@ -44,7 +44,7 @@ class TestFile:
 
     def __init__(
         self,
-        directory: Union[str, None] = None,
+        directory: str | None = None,
         *,
         root_owned: bool = True,
         immutable: bool = False,

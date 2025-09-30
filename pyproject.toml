@@ -1,7 +1,7 @@
 [project]
 name = "run0edit"
 version = "0.5.3"
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 authors = [{name = "Daniel Hast"}]
 maintainers = [{name = "Daniel Hast"}]
 description = "run0edit allows a permitted user to edit a file as root using run0."
