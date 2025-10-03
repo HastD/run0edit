@@ -8,7 +8,7 @@ URL:            https://github.com/HastD/%{name}
 Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.tar.gz
 
 BuildArch:      noarch
-Requires:       python3 >= 3.9
+Requires:       python3 >= 3.10
 Requires:       systemd >= 256
 Recommends:     e2fsprogs
 
@@ -36,6 +36,9 @@ install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner
 %{_libexecdir}/%{name}
 
 %changelog
+* Tues Oct 07 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.4
+  - Update to version 0.5.4
+  - Increase minimum required Python version to 3.10.
 * Mon Aug 18 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.3
   - Update to version 0.5.3
   - Specify remote source URL to simplify Copr builds.

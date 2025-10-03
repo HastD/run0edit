@@ -5,12 +5,12 @@
 import os
 import shutil
 import tempfile
-from typing import Final, Union
+from typing import Final
 
 TEMP_FILE_PREFIX: Final[str] = "run0edit-unittest-"
 
 
-def new_test_file(contents: bytes = b"", *, mode: Union[int, None] = None) -> str:
+def new_test_file(contents: bytes = b"", *, mode: int | None = None) -> str:
     """Make a temporary file with the given contents."""
     path = tempfile.mkstemp(prefix=TEMP_FILE_PREFIX)[1]
     if contents:
