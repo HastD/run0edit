@@ -50,6 +50,7 @@ class TestFile:
         immutable: bool = False,
         create: bool = True,
         is_dir: bool = False,
+        mode: int | None = None,
     ):
         if directory is None:
             directory = tempfile.gettempdir()
@@ -68,6 +69,8 @@ class TestFile:
             text=True,
         )  # nosec
         self._path = result.stdout.strip()
+        if mode is not None:
+            subprocess.run([RUN0, cmd("chmod"), f"{mode:o}", "--", self._path], check=True)  # nosec
         if immutable:
             subprocess.run([RUN0, cmd("chattr"), "+i", "--", self._path], check=True)  # nosec
 
@@ -166,6 +169,15 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(file.read().strip(), EDITED_TEXT)
         self.assertTrue(directory.is_immutable())
         self.assertFalse(file.is_immutable())
+
+    def test_create_file_in_unreadable_directory(self):
+        """Should successfully create new file in directory not readable by user"""
+        directory = TestFile(is_dir=True, mode=0o700)
+        file = TestFile(directory=directory.path, create=False)
+        result = run0edit(file.path)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(file.read().strip(), EDITED_TEXT)
 
     def test_user_writable_file(self):
         """Should give expected error if file is user-writable"""
