@@ -390,7 +390,11 @@ def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False)
         # If directory does not exist, namespace creation will fail, causing
         # run0 to fail with exit status 226:
         # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
-        print_err(f"No such directory {os.path.dirname(path)}")
+        # This can also occur if the path is privileged (such as /etc/shadow)
+        # and SELinux is enabled and blocks systemd from mounting the namespace.
+        print_err(
+            f"No such directory {os.path.dirname(path)}, or path is in a privileged location."
+        )
         temp_file.remove()
         return 1
     if process.returncode != 0:
