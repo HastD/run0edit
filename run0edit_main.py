@@ -55,11 +55,11 @@ import sys
 import tempfile
 import textwrap
 from collections.abc import Sequence
-from typing import Final, Union
+from typing import Final
 
 __version__: Final[str] = "0.5.3"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "b206d13b19267bab87dc18628462cafb70885076cc0fda7713d9e910600aa787"
+INNER_SCRIPT_SHA256: Final[str] = "b3ab769743f4e7ac3519ef8503dd257ed05006faed49136260182894efbc9ca6"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -113,7 +113,7 @@ def validate_inner_script() -> bool:
     return file_hash.hexdigest() == INNER_SCRIPT_SHA256
 
 
-def readonly_filesystem(path: str) -> Union[bool, None]:
+def readonly_filesystem(path: str) -> bool | None:
     """Determine if the path is on a read-only filesystem."""
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
@@ -159,7 +159,7 @@ class InvalidProvidedEditorError(EditorSelectionError):
     """Provided editor path is invalid."""
 
 
-def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> Union[str, None]:
+def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> str | None:
     """Get path to editor executable from conf file."""
     try:
         with open(conf_path, encoding="utf8") as f:
@@ -175,7 +175,7 @@ def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> Union[str, 
     return editor
 
 
-def get_fallback_editor_path(fallbacks: Union[Sequence[str], None] = None) -> Union[str, None]:
+def get_fallback_editor_path(fallbacks: Sequence[str] | None = None) -> str | None:
     """Get fallback editor path."""
     if fallbacks is None:
         fallbacks = ("nano", "vi")
@@ -187,7 +187,7 @@ def get_fallback_editor_path(fallbacks: Union[Sequence[str], None] = None) -> Un
     return None
 
 
-def get_editor_path(provided_editor: Union[str, None] = None) -> str:
+def get_editor_path(provided_editor: str | None = None) -> str:
     """Get the editor path from a provided path, conf file, or fallback."""
     if provided_editor is not None:
         if not is_valid_executable(provided_editor):
@@ -202,7 +202,7 @@ def get_editor_path(provided_editor: Union[str, None] = None) -> str:
     raise EditorNotFoundError
 
 
-def handle_editor_selection(provided_editor: Union[str, None] = None) -> str:
+def handle_editor_selection(provided_editor: str | None = None) -> str:
     """Get editor path, handling errors by printing error messages and re-raising."""
     try:
         return get_editor_path(provided_editor=provided_editor)
@@ -385,23 +385,24 @@ def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False)
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
     process = subprocess.run(run0_args.argument_list(), env=env, check=False)  # nosec
-    SYSTEMD_EXIT_NAMESPACE = 226
-    if process.returncode == SYSTEMD_EXIT_NAMESPACE:
-        # If directory does not exist, namespace creation will fail, causing
-        # run0 to fail with exit status 226:
-        # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
-        # This can also occur if the path is privileged (such as /etc/shadow)
-        # and SELinux is enabled and blocks systemd from mounting the namespace.
-        print_err(
-            f"No such directory {os.path.dirname(path)}, or path is in a privileged location."
-        )
-        temp_file.remove()
-        return 1
-    if process.returncode != 0:
-        temp_file.remove(only_if_empty=True)
-        return process.returncode
-    temp_file.remove()
-    return 0
+    match process.returncode:
+        case 0:
+            temp_file.remove()
+            return 0
+        case 226:
+            # If directory does not exist, namespace creation will fail, causing
+            # run0 to fail with exit status 226:
+            # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
+            # This can also occur if the path is privileged (such as /etc/shadow)
+            # and SELinux is enabled and blocks systemd from mounting the namespace.
+            print_err(
+                f"No such directory {os.path.dirname(path)}, or path is in a privileged location."
+            )
+            temp_file.remove()
+            return 1
+        case _:
+            temp_file.remove(only_if_empty=True)
+            return process.returncode
 
 
 def parse_arguments() -> argparse.Namespace:

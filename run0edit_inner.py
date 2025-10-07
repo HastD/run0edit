@@ -50,7 +50,6 @@ import stat
 import subprocess  # nosec
 import sys
 from collections.abc import Sequence
-from typing import Union
 
 
 class Run0editError(Exception):
@@ -101,7 +100,7 @@ class FileContentsMismatchError(Run0editError):
     """File contents are not what they should be."""
 
 
-def readonly_filesystem(path: str) -> Union[bool, None]:
+def readonly_filesystem(path: str) -> bool | None:
     """Determine if the path is on a read-only filesystem."""
     try:
         return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
@@ -117,7 +116,7 @@ def find_command(command: str) -> str:
     return cmd_path
 
 
-def run_command(cmd: str, *args: str, capture_output: bool = False) -> Union[str, None]:
+def run_command(cmd: str, *args: str, capture_output: bool = False) -> str | None:
     """Run command as subprocess."""
     run_args = [find_command(cmd), *args]
     try:
@@ -385,7 +384,7 @@ def parse_args(args: Sequence[str]) -> tuple[str, str, str]:
     return args[0], args[1], args[2]
 
 
-def main(args: Sequence[str], *, uid: Union[int, None] = None) -> int:
+def main(args: Sequence[str], *, uid: int | None = None) -> int:
     """Main function."""
     try:
         original_file, temp_file, editor = parse_args(args)
