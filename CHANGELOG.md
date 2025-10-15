@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.5.4] - 2025-10-15
+
+- Drop support for Python 3.9, which is end-of-life and no longer receiving
+  security updates. If you are using Python 3.9, you should update to a newer
+  Python version as soon as possible.
+  ([#28](https://github.com/HastD/run0edit/pull/28))
+- Make error messages more informative in a couple cases.
+  ([#26](https://github.com/HastD/run0edit/pull/26),
+  [#33](https://github.com/HastD/run0edit/pull/33))
+- Various minor CI improvements.
+  ([#24](https://github.com/HastD/run0edit/pull/24),
+  [#27](https://github.com/HastD/run0edit/pull/27),
+  [#30](https://github.com/HastD/run0edit/pull/30),
+  [#32](https://github.com/HastD/run0edit/pull/32))
+
 ## [v0.5.3] - 2025-08-18
 
 - If `/etc/run0edit/editor.conf` exists but is unreadable due to a permission
@@ -121,6 +136,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.5.4]: https://github.com/HastD/run0edit/compare/v0.5.3...v0.5.4
 [v0.5.3]: https://github.com/HastD/run0edit/compare/v0.5.2...v0.5.3
 [v0.5.2]: https://github.com/HastD/run0edit/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/HastD/run0edit/compare/v0.5.0...v0.5.1
