@@ -569,6 +569,14 @@ class TestPrintErr(unittest.TestCase):
         unwrapped = output.replace("\n", " ")
         self.assertEqual(unwrapped.removeprefix("run0edit: ").strip(), text.strip())
 
+    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    def test_no_wrap(self, mock_stderr):
+        """Should output text to stderr without word wrapping"""
+        text = "    " + "Lorem ipsum dolor sit amet " * 10
+        run0edit.print_err(text, wrap=False)
+        output = mock_stderr.getvalue()
+        self.assertEqual(output.rstrip("\n"), "run0edit: " + text.lstrip(" "))
+
 
 class TestValidatePath(unittest.TestCase):
     """Tests for validate_path"""

@@ -213,11 +213,18 @@ def handle_editor_selection(provided_editor: str | None = None) -> str:
         """)
         raise
     except UnreadableEditorConfError:
-        print_err(f"""
+        conf_dir = os.path.dirname(DEFAULT_CONF_PATH)
+        print_err(
+            f"""
             Configuration file exists but is unreadable. Please fix the permissions on
-            {DEFAULT_CONF_PATH} to make the file readable by all users. You may also use
-            the --editor option to specify the editor to use for a single run of run0edit.
-        """)
+            {DEFAULT_CONF_PATH} to make the file readable by all users. To do so, run the
+            following command as root:
+                chmod 0755 {conf_dir} && chmod 0644 {DEFAULT_CONF_PATH}
+            You may also use the --editor option to specify the editor to use for a single
+            run of run0edit.
+            """,
+            wrap=False,
+        )
         raise
     except InvalidEditorConfError:
         print_err(f"""
@@ -340,9 +347,11 @@ def build_run0_arguments(
     )
 
 
-def print_err(message: str) -> None:
+def print_err(message: str, *, wrap: bool = True) -> None:
     """Print error message to stderr with text wrapping."""
-    text = textwrap.fill("run0edit: " + textwrap.dedent(message.strip("\n")), width=80)
+    text = "run0edit: " + textwrap.dedent(message.strip("\n"))
+    if wrap:
+        text = textwrap.fill(text, width=80)
     print(text, file=sys.stderr)
 
 
