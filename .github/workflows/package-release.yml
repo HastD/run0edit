@@ -34,7 +34,7 @@ jobs:
     needs: build_source_archive
     runs-on: ubuntu-24.04
     container:
-      image: almalinux@sha256:3a11f19acf607c4248bc448010009208f1fddc0289f78e32e513d97821eef080 # v9.6
+      image: fedora@sha256:aa7befe5cfd1f0e062728c16453cd1c479d4134c7b85eac00172f3025ab0d522 # v42
     steps:
       - name: Install dependencies
         run: |
