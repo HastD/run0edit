@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y nodejs python3 rpmdevtools rpmlint
+          dnf install -y nodejs python3 python3-devel rpmdevtools rpmlint
           rpmdev-setuptree
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
