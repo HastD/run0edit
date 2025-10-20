@@ -59,7 +59,7 @@ from typing import Final
 
 __version__: Final[str] = "0.5.4"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "b3ab769743f4e7ac3519ef8503dd257ed05006faed49136260182894efbc9ca6"
+INNER_SCRIPT_SHA256: Final[str] = "ca1ce317ddddcd4516755f9bd533b91303e883544e13a9af01e8535d3f0aa050"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -312,6 +312,7 @@ class Run0Arguments:
     command: str
     command_args: list[str]
     setenv: dict[str, str] = dataclasses.field(default_factory=dict)
+    extra_options: list[str] = dataclasses.field(default_factory=list)
     _run0_cmd: str = dataclasses.field(default_factory=lambda: find_command("run0"))
 
     def argument_list(self) -> list[str]:
@@ -320,19 +321,30 @@ class Run0Arguments:
         args += [f"--property={prop}" for prop in self.systemd_properties]
         for key, value in self.setenv.items():
             args.append(f"--setenv={key}={value}")
+        args += self.extra_options
         args += ["--", self.command, *self.command_args]
         return args
 
 
 def build_run0_arguments(
-    path: str, temp_path: str, editor: str, *, debug: bool = False, no_prompt: bool = False
+    path: str,
+    temp_path: str,
+    editor: str,
+    *,
+    bgcolor: str | None = None,
+    debug: bool = False,
+    no_prompt: bool = False,
 ) -> Run0Arguments:
     """Construct the arguments to be passed to run0."""
     python_cmd = find_command("python3")
     rw_path = sandbox_path(path)
     rw_path_prop = f'ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"'
     systemd_properties = [*SYSTEMD_SANDBOX_PROPERTIES, rw_path_prop]
+    extra_options = []
     python_args = [INNER_SCRIPT_PATH, path, temp_path, editor]
+    if bgcolor is not None:
+        extra_options.append(f"--background={bgcolor}")
+        python_args.append(bgcolor)
     setenv = {}
     if debug:
         setenv["RUN0EDIT_DEBUG"] = "1"
@@ -343,6 +355,7 @@ def build_run0_arguments(
         systemd_properties=systemd_properties,
         command=python_cmd,
         command_args=python_args,
+        extra_options=extra_options,
         setenv=setenv,
     )
 
@@ -380,7 +393,14 @@ def validate_path(path: str) -> None:
         raise InvalidPathError(f"{path} is on a read-only filesystem.")
 
 
-def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False) -> int:
+def run(
+    path: str,
+    editor: str,
+    *,
+    bgcolor: str | None = None,
+    debug: bool = False,
+    no_prompt: bool = False,
+) -> int:
     """Main program to run for a given file."""
     path = os.path.realpath(path)
     try:
@@ -389,7 +409,9 @@ def run(path: str, editor: str, *, debug: bool = False, no_prompt: bool = False)
         print_err(e.reason)
         return 1
     temp_file = TempFile(path)
-    run0_args = build_run0_arguments(path, temp_file.path, editor, debug=debug, no_prompt=no_prompt)
+    run0_args = build_run0_arguments(
+        path, temp_file.path, editor, bgcolor=bgcolor, debug=debug, no_prompt=no_prompt
+    )
     env = os.environ.copy()
     if os.geteuid() == 0:
         env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
@@ -420,7 +442,10 @@ def parse_arguments() -> argparse.Namespace:
     epilog = f"The default choice of text editor may be configured at {DEFAULT_CONF_PATH}"
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
-    parser.add_argument("--editor", help="absolute path to text editor (optional)")
+    parser.add_argument("--editor", help="absolute path to text editor")
+    parser.add_argument(
+        "--background", metavar="COLOR", help="set ANSI color for background (empty for none)"
+    )
     parser.add_argument("--no-prompt", action="store_true", help="skip confirmation prompts")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
@@ -471,7 +496,9 @@ def main() -> int:
     exit_code = 0
     for path in args.paths:
         try:
-            exit_code = run(path, editor, debug=args.debug, no_prompt=args.no_prompt)
+            exit_code = run(
+                path, editor, bgcolor=args.background, debug=args.debug, no_prompt=args.no_prompt
+            )
         except CommandNotFoundError as e:
             print_err(f"command `{e.args[0]}` not found")
             if args.debug:

@@ -6,6 +6,7 @@ import hashlib
 import io
 import os
 import pathlib
+import re
 import unittest
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -527,9 +528,30 @@ class TestBuildRun0Arguments(unittest.TestCase):
         self.assertTrue(args.description.startswith("run0edit "))
         self.assertEqual(args._run0_cmd, "/usr/bin/run0")
         self.assertEqual(args.systemd_properties[-1], f'ReadWritePaths="{path}" "{temp_path}"')
+        self.assertEqual(args.extra_options, [])
         self.assertEqual(args.command, "/usr/bin/python3")
         self.assertEqual(args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor])
         self.assertEqual(len(args.argument_list()), len(props) + 9)
+        remove_test_file(path)
+
+    def test_args_bgcolor(self, mock_find_cmd):
+        """Should return expected arguments"""
+        mock_find_cmd.side_effect = lambda cmd: f"/usr/bin/{cmd}"
+        path = new_test_file()
+        temp_path = "/path/to/temp/file"
+        editor = "/usr/bin/vim"
+        args = run0edit.build_run0_arguments(path, temp_path, editor, bgcolor="bgcolor")
+        props = run0edit.SYSTEMD_SANDBOX_PROPERTIES
+        self.assertEqual(len(args.systemd_properties), len(props) + 1)
+        self.assertTrue(args.description.startswith("run0edit "))
+        self.assertEqual(args._run0_cmd, "/usr/bin/run0")
+        self.assertEqual(args.systemd_properties[-1], f'ReadWritePaths="{path}" "{temp_path}"')
+        self.assertEqual(args.extra_options, ["--background=bgcolor"])
+        self.assertEqual(args.command, "/usr/bin/python3")
+        self.assertEqual(
+            args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor, "bgcolor"]
+        )
+        self.assertEqual(len(args.argument_list()), len(props) + 11)
         remove_test_file(path)
 
     def test_read_write_paths(self, mock_find_cmd):
@@ -770,7 +792,9 @@ class TestRun(unittest.TestCase):
 class TestParseArguments(unittest.TestCase):
     """Tests for parse_arguments"""
 
-    USAGE_TEXT: str = "usage: run0edit [-h] [-v] [--editor EDITOR] [--no-prompt] FILE [FILE ...]"
+    USAGE_TEXT: str = """
+    usage: run0edit [-h] [-v] [--editor EDITOR] [--background COLOR] [--no-prompt] FILE [FILE ...]
+    """.strip()
     DESCRIPTION: str = "run0edit allows a permitted user to edit a file as root."
 
     @mock.patch("sys.argv", [])
@@ -779,9 +803,9 @@ class TestParseArguments(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "2"):
             run0edit.parse_arguments()
         self.assertEqual(mock_stdout.getvalue(), "")
-        msg = mock_stderr.getvalue().strip()
+        msg = re.sub(r"\s+", " ", mock_stderr.getvalue().strip())
         error_text = "run0edit: error: the following arguments are required: FILE"
-        self.assertEqual(msg, f"{self.USAGE_TEXT}\n{error_text}")
+        self.assertEqual(msg, f"{self.USAGE_TEXT} {error_text}")
 
     def test_help(self, mock_stdout, mock_stderr):
         """Should show usage and exit normally if called with -h or --help"""
@@ -790,8 +814,8 @@ class TestParseArguments(unittest.TestCase):
             self.assertRaisesRegex(SystemExit, "0"),
         ):
             run0edit.main()
-        help_text = mock_stdout.getvalue()
-        self.assertTrue(help_text.startswith(f"{self.USAGE_TEXT}\n\n{self.DESCRIPTION}"))
+        help_text = re.sub(r"\s+", " ", mock_stdout.getvalue().strip())
+        self.assertTrue(help_text.startswith(f"{self.USAGE_TEXT} {self.DESCRIPTION}"))
         mock_stdout.truncate(0)
         mock_stdout.seek(0)
         with (
@@ -799,7 +823,8 @@ class TestParseArguments(unittest.TestCase):
             self.assertRaisesRegex(SystemExit, "0"),
         ):
             run0edit.main()
-        self.assertEqual(mock_stdout.getvalue(), help_text)
+        short_help_text = re.sub(r"\s+", " ", mock_stdout.getvalue().strip())
+        self.assertEqual(short_help_text, help_text)
         self.assertEqual(mock_stderr.getvalue(), "")
 
     def test_version(self, mock_stdout, mock_stderr):
@@ -1025,7 +1050,10 @@ class TestMain(unittest.TestCase):
         paths = ("path1", "path2")
         self.assertEqual(
             mock_run.call_args_list,
-            [((path, editor), {"debug": False, "no_prompt": False}) for path in paths],
+            [
+                ((path, editor), {"bgcolor": None, "debug": False, "no_prompt": False})
+                for path in paths
+            ],
         )
         self.assertEqual(mock_editor_path.call_count, 1)
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -1071,6 +1099,8 @@ class TestMain(unittest.TestCase):
         mock_run.side_effect = run0edit.CommandNotFoundError("foo")
         with self.assertRaisesRegex(run0edit.CommandNotFoundError, "foo"):
             run0edit.main()
-        self.assertEqual(mock_run.call_args.kwargs, {"debug": True, "no_prompt": False})
+        self.assertEqual(
+            mock_run.call_args.kwargs, {"bgcolor": None, "debug": True, "no_prompt": False}
+        )
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertEqual(mock_stderr.getvalue(), "run0edit: command `foo` not found\n")

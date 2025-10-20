@@ -322,11 +322,15 @@ def handle_copy_to_original(
         raise
 
 
-def run_editor(*, uid: int, editor: str, path: str) -> None:
+def run_editor(*, uid: int, editor: str, path: str, bgcolor: str | None = None) -> None:
     """Run the editor as the given UID to edit the file at the given path."""
+    sh = find_command("sh")
+    run0_args = ["run0", f"--user={uid}"]
+    if bgcolor is not None:
+        run0_args.append(f"--background={bgcolor}")
+    run0_args += ["--", sh, "-c", '"$1" "$2"', sh, editor, path]
     try:
-        sh = find_command("sh")
-        run_command("run0", f"--user={uid}", "--", sh, "-c", '"$1" "$2"', sh, editor, path)
+        run_command(*run0_args)
     except CommandNotFoundError as e:
         print("run0edit: failed to call run0 to start editor")
         raise EditTempFileError from e
@@ -336,7 +340,13 @@ def run_editor(*, uid: int, editor: str, path: str) -> None:
 
 
 def run(
-    original_file: str, temp_file: str, editor: str, uid: int, *, prompt_immutable: bool = True
+    original_file: str,
+    temp_file: str,
+    editor: str,
+    uid: int,
+    *,
+    prompt_immutable: bool = True,
+    bgcolor: str | None = None,
 ) -> None:
     """
     Copy file to temp file, run editor, and copy temp file back to target file.
@@ -361,7 +371,7 @@ def run(
             raise
 
     # Attempt to edit the temp file as the original user.
-    run_editor(uid=uid, editor=editor, path=temp_file)
+    run_editor(uid=uid, editor=editor, path=temp_file, bgcolor=bgcolor)
 
     handle_copy_to_original(
         original_file, temp_file, original_file_exists=original_file_exists, immutable=immutable
@@ -372,22 +382,27 @@ class InvalidArgumentsError(Exception):
     """Arguments to script are invalid."""
 
 
-def parse_args(args: Sequence[str]) -> tuple[str, str, str]:
+def parse_args(args: Sequence[str]) -> tuple[str, str, str, str | None]:
     """Parse command-line arguments, raising error if too few or too many."""
-    EXPECTED_LEN_ARGS = 3
-    if len(args) < EXPECTED_LEN_ARGS:
+    EXPECTED_MIN_ARGS = 3
+    EXPECTED_MAX_ARGS = 4
+    if len(args) < EXPECTED_MIN_ARGS:
         print("run0edit_inner.py: Error: too few arguments")
         raise InvalidArgumentsError
-    if len(args) > EXPECTED_LEN_ARGS:
+    if len(args) > EXPECTED_MAX_ARGS:
         print("run0edit_inner.py: Error: too many arguments")
         raise InvalidArgumentsError
-    return args[0], args[1], args[2]
+    try:
+        bgcolor = args[3]
+    except IndexError:
+        bgcolor = None
+    return args[0], args[1], args[2], bgcolor
 
 
 def main(args: Sequence[str], *, uid: int | None = None) -> int:
     """Main function."""
     try:
-        original_file, temp_file, editor = parse_args(args)
+        original_file, temp_file, editor, bgcolor = parse_args(args)
     except InvalidArgumentsError:
         return 2
     if uid is None:
@@ -395,7 +410,14 @@ def main(args: Sequence[str], *, uid: int | None = None) -> int:
     debug = os.environ.get("RUN0EDIT_DEBUG") == "1"
     prompt_immutable = os.environ.get("RUN0EDIT_NO_PROMPT") != "1"
     try:
-        run(original_file, temp_file, editor, uid, prompt_immutable=prompt_immutable)
+        run(
+            original_file,
+            temp_file,
+            editor,
+            uid,
+            prompt_immutable=prompt_immutable,
+            bgcolor=bgcolor,
+        )
     except Run0editError:
         if debug:
             raise

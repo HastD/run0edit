@@ -60,7 +60,7 @@ Note: `run0edit` requires systemd version 256 or newer.
 ## Usage
 
 ```
-run0edit [--editor EDITOR] FILE
+run0edit [--editor EDITOR] [--background COLOR] FILE
 run0edit [--help | -h]
 run0edit [--version | -v]
 ```
