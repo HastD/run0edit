@@ -436,6 +436,15 @@ def run(
             return process.returncode
 
 
+def ansi_color(color: str) -> str:
+    """
+    Return string unmodified if formatted like an ANSI color code, otherwise raise ValueError.
+    """
+    if color and not all(part.isascii() and part.isdigit() for part in color.split(";")):
+        raise ValueError
+    return color
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments using argparse."""
     description = "run0edit allows a permitted user to edit a file as root."
@@ -444,7 +453,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--editor", help="absolute path to text editor")
     parser.add_argument(
-        "--background", metavar="COLOR", help="set ANSI color for background (empty for none)"
+        "--background",
+        type=ansi_color,
+        metavar="COLOR",
+        help="set ANSI color for background (empty for none)",
     )
     parser.add_argument("--no-prompt", action="store_true", help="skip confirmation prompts")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)

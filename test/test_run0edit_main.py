@@ -787,6 +787,38 @@ class TestRun(unittest.TestCase):
         self.assertIn("No such directory", mock_stderr.getvalue())
 
 
+class TestAnsiColor(unittest.TestCase):
+    """Tests for ansi_color"""
+
+    def test_valid_codes(self):
+        """The empty string and numbers separated by ; should be accepted"""
+        test_values = ("", "0123456789", "44;5", "1;2;3", "0;0;0;0;0;0;0")
+        for value in test_values:
+            self.assertEqual(
+                run0edit.ansi_color(value), value, msg=f"valid ANSI code {value} was rejected"
+            )
+
+    def test_invalid_codes(self):
+        """Various other values should be rejected with ValueError"""
+        test_values = (
+            " ",
+            "0 ",
+            ";",
+            "bad",
+            "0asdf1",
+            "1;2;3;",
+            ";40",
+            "\u00b2",  # SUPERSCRIPT TWO
+            "\u00bd",  # VULGAR FRACTION ONE HALF
+            "\u1369",  # ETHIOPIC DIGIT ONE
+            "\u2160",  # ROMAN NUMERAL ONE
+            "\u2468",  # CIRCLED DIGIT NINE
+        )
+        for value in test_values:
+            with self.assertRaises(ValueError, msg=f"invalid ANSI code '{value}' was accepted"):
+                run0edit.ansi_color(value)
+
+
 @mock.patch("sys.stderr", new_callable=io.StringIO)
 @mock.patch("sys.stdout", new_callable=io.StringIO)
 class TestParseArguments(unittest.TestCase):
@@ -807,12 +839,10 @@ class TestParseArguments(unittest.TestCase):
         error_text = "run0edit: error: the following arguments are required: FILE"
         self.assertEqual(msg, f"{self.USAGE_TEXT} {error_text}")
 
+    @mock.patch("sys.argv", ["run0edit", "--help"])
     def test_help(self, mock_stdout, mock_stderr):
         """Should show usage and exit normally if called with -h or --help"""
-        with (
-            mock.patch("sys.argv", ["run0edit", "--help"]),
-            self.assertRaisesRegex(SystemExit, "0"),
-        ):
+        with self.assertRaisesRegex(SystemExit, "0"):
             run0edit.main()
         help_text = re.sub(r"\s+", " ", mock_stdout.getvalue().strip())
         self.assertTrue(help_text.startswith(f"{self.USAGE_TEXT} {self.DESCRIPTION}"))
@@ -827,12 +857,10 @@ class TestParseArguments(unittest.TestCase):
         self.assertEqual(short_help_text, help_text)
         self.assertEqual(mock_stderr.getvalue(), "")
 
+    @mock.patch("sys.argv", ["run0edit", "--version"])
     def test_version(self, mock_stdout, mock_stderr):
         """Should show version and exit normally if called with -v or --version"""
-        with (
-            mock.patch("sys.argv", ["run0edit", "--version"]),
-            self.assertRaisesRegex(SystemExit, "0"),
-        ):
+        with self.assertRaisesRegex(SystemExit, "0"):
             run0edit.parse_arguments()
         expected_version_text = f"run0edit {run0edit.__version__}\n"
         self.assertEqual(mock_stdout.getvalue(), expected_version_text)
@@ -851,9 +879,40 @@ class TestParseArguments(unittest.TestCase):
         """Should accept and store --editor argument"""
         args = run0edit.parse_arguments()
         self.assertEqual(args.editor, "/path/to/editor")
+        self.assertIsNone(args.background)
         self.assertFalse(args.debug)
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--background=1;2;3", "foo"])
+    def test_background(self, mock_stdout, mock_stderr):
+        """Should accept and store --editor argument"""
+        args = run0edit.parse_arguments()
+        self.assertIsNone(args.editor)
+        self.assertEqual(args.background, "1;2;3")
+        self.assertFalse(args.debug)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--background=", "foo"])
+    def test_empty_background(self, mock_stdout, mock_stderr):
+        """Should accept and store --editor argument"""
+        args = run0edit.parse_arguments()
+        self.assertIsNone(args.editor)
+        self.assertEqual(args.background, "")
+        self.assertFalse(args.debug)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--background=bad", "foo"])
+    def test_invalid_background(self, mock_stdout, mock_stderr):
+        """Should accept and store --editor argument"""
+        with self.assertRaisesRegex(SystemExit, "2"):
+            run0edit.parse_arguments()
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertIn(
+            "argument --background: invalid ansi_color value: 'bad'", mock_stderr.getvalue()
+        )
 
     @mock.patch("sys.argv", ["run0edit", "--debug", "foo"])
     def test_debug(self, mock_stdout, mock_stderr):
@@ -1056,6 +1115,26 @@ class TestMain(unittest.TestCase):
             ],
         )
         self.assertEqual(mock_editor_path.call_count, 1)
+        self.assertEqual(mock_stdout.getvalue(), "")
+        self.assertEqual(mock_stderr.getvalue(), "")
+
+    @mock.patch("sys.argv", ["run0edit", "--background=1;2;3", "path1", "path2"])
+    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
+    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    def test_run_with_bgcolor(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
+        """Should pass bgcolor argument to run and exit successfully"""
+        editor = "/usr/bin/vim"
+        mock_editor_path.return_value = editor
+        mock_run.return_value = 0
+        self.assertEqual(run0edit.main(), 0)
+        paths = ("path1", "path2")
+        self.assertEqual(
+            mock_run.call_args_list,
+            [
+                ((path, editor), {"bgcolor": "1;2;3", "debug": False, "no_prompt": False})
+                for path in paths
+            ],
+        )
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertEqual(mock_stderr.getvalue(), "")
 
