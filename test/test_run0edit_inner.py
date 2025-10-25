@@ -544,6 +544,31 @@ class TestRunEditor(unittest.TestCase):
         )
         self.assertEqual(mock_stdout.getvalue(), "")
 
+    @mock.patch("run0edit_inner.find_command")
+    def test_check_args_with_bgcolor(self, mock_find_cmd, mock_run_cmd, mock_stdout):
+        """Should pass correct arguments to run_command"""
+        editor = mock.sentinel.editor
+        path = mock.sentinel.path
+        bgcolor = "bgcolor"
+        mock_find_cmd.side_effect = lambda cmd: f"/bin/{cmd}"
+        inner.run_editor(uid=42, editor=editor, path=path, bgcolor=bgcolor)
+        self.assertEqual(
+            mock_run_cmd.call_args.args,
+            (
+                "run0",
+                "--user=42",
+                "--background=bgcolor",
+                "--",
+                "/bin/sh",
+                "-c",
+                '"$1" "$2"',
+                "/bin/sh",
+                editor,
+                path,
+            ),
+        )
+        self.assertEqual(mock_stdout.getvalue(), "")
+
     def test_error_messages(self, mock_run_cmd, mock_stdout):
         """Should print appropriate error messages and raise EditTempFileError"""
         errors = {
@@ -582,7 +607,7 @@ class TestRun(TestCaseWithFiles):
         m_realpath.return_value = s.realpath
         m_exists.return_value = True
         m_check_ro.return_value = s.immutable
-        inner.run(s.filename, s.temp_filename, s.editor, s.uid)
+        inner.run(s.filename, s.temp_filename, s.editor, s.uid, bgcolor=s.bgcolor)
         self.assertEqual(m_realpath.call_args.args, (s.filename,))
         self.assertEqual(m_exists.call_args.args, (s.realpath,))
         self.assertEqual(
@@ -592,7 +617,7 @@ class TestRun(TestCaseWithFiles):
         self.assertEqual(m_copy_file.call_args, ((s.realpath, s.temp_filename), {"create": False}))
         self.assertEqual(
             m_run_editor.call_args,
-            ((), {"uid": s.uid, "editor": s.editor, "path": s.temp_filename}),
+            ((), {"uid": s.uid, "editor": s.editor, "path": s.temp_filename, "bgcolor": s.bgcolor}),
         )
         self.assertEqual(
             m_copy_orig.call_args,
@@ -679,10 +704,15 @@ class TestRun(TestCaseWithFiles):
 class TestParseArgs(unittest.TestCase):
     """Tests for parse_args"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
+    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3)
 
     def test_three_args(self, mock_stdout):
-        """Should return three provided arguments"""
+        """Should return three provided arguments plus None"""
+        self.assertEqual(inner.parse_args(self.ARGS[:3]), (*self.ARGS[:3], None))
+        self.assertEqual(mock_stdout.getvalue(), "")
+
+    def test_four_args(self, mock_stdout):
+        """Should return four provided arguments"""
         self.assertEqual(inner.parse_args(self.ARGS), self.ARGS)
         self.assertEqual(mock_stdout.getvalue(), "")
 
@@ -704,7 +734,8 @@ class TestParseArgs(unittest.TestCase):
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
+    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3)
+    EXPECTED_ARGS = ((*ARGS[:3], 42), {"bgcolor": ARGS[3], "prompt_immutable": True})
 
     @mock.patch("run0edit_inner.parse_args")
     def test_parses_args(self, mock_parse_args, mock_run):
@@ -712,7 +743,7 @@ class TestMain(unittest.TestCase):
         mock_parse_args.return_value = self.ARGS
         inner.main(mock.sentinel.main_args)
         self.assertEqual(mock_parse_args.call_args, ((mock.sentinel.main_args,), {}))
-        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
 
     @mock.patch("run0edit_inner.parse_args")
     def test_invalid_args(self, mock_parse_args, mock_run):
@@ -724,18 +755,21 @@ class TestMain(unittest.TestCase):
     def test_normal_run(self, mock_run):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS), 0)
-        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
 
     def test_normal_run_with_uid(self, mock_run):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS, uid=5), 0)
-        self.assertEqual(mock_run.call_args, ((*self.ARGS, 5), {"prompt_immutable": True}))
+        self.assertEqual(
+            mock_run.call_args,
+            ((*self.ARGS[:3], 5), {"bgcolor": self.ARGS[3], "prompt_immutable": True}),
+        )
 
     def test_failed_run(self, mock_run):
         """Should pass correct args to run and return 1"""
         mock_run.side_effect = inner.Run0editError
         self.assertEqual(inner.main(self.ARGS), 1)
-        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
 
     @mock.patch.dict("os.environ", {"RUN0EDIT_DEBUG": "1"})
     def test_failed_run_debug(self, mock_run):
@@ -743,4 +777,4 @@ class TestMain(unittest.TestCase):
         mock_run.side_effect = inner.Run0editError
         with self.assertRaises(inner.Run0editError):
             inner.main(self.ARGS)
-        self.assertEqual(mock_run.call_args, ((*self.ARGS, 42), {"prompt_immutable": True}))
+        self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)

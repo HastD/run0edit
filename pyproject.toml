@@ -63,6 +63,7 @@ ignore = [
 
 mccabe.max-complexity = 8
 pycodestyle.max-doc-length = 100
+pylint.max-args = 6
 pylint.max-statements = 30
 
 [tool.ruff.lint.per-file-ignores]
