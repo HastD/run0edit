@@ -1,10 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [v0.5.5] - 2025-10-28
 
-- Add optional `--background` option to set or disable the background color.
-  This behaves the same as the `--background` option of `run0`, and is
-  implemented by passing through the option to the inner call to `run0`.
+- Add `--background` option to set or disable the background color. This behaves
+  the same as the `--background` option of `run0`, and is implemented by passing
+  through the option to the inner call to `run0`.
+  ([#38](https://github.com/HastD/run0edit/pull/38))
 
 ## [v0.5.4] - 2025-10-15
 
@@ -142,7 +143,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.4...HEAD
+[v0.5.5]: https://github.com/HastD/run0edit/compare/v0.5.4...v0.5.5
 [v0.5.4]: https://github.com/HastD/run0edit/compare/v0.5.3...v0.5.4
 [v0.5.3]: https://github.com/HastD/run0edit/compare/v0.5.2...v0.5.3
 [v0.5.2]: https://github.com/HastD/run0edit/compare/v0.5.1...v0.5.2

@@ -57,7 +57,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import Final
 
-__version__: Final[str] = "0.5.4"
+__version__: Final[str] = "0.5.5"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_SHA256: Final[str] = "ca1ce317ddddcd4516755f9bd533b91303e883544e13a9af01e8535d3f0aa050"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
