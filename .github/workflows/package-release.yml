@@ -53,7 +53,7 @@ jobs:
         run: sed -Ei '/^Source0:/s/https:\/\/.*/%{name}-%{version}.tar.gz/' rpm/run0edit.spec
 
       - name: Retrieve source archive
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: source-archive
           path: ~/rpmbuild/SOURCES
@@ -92,7 +92,7 @@ jobs:
           sudo sed -i 's/^update_initramfs=.*/update_initramfs=no/' /etc/initramfs-tools/update-initramfs.conf
 
       - name: Retrieve RPM
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: rpm
 
@@ -117,7 +117,7 @@ jobs:
       contents: write # necessary to create release
     steps:
       - name: Retrieve all artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
 
       - name: Create draft release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
