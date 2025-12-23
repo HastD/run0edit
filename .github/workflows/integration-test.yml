@@ -66,11 +66,17 @@ jobs:
           sudo install -m 755 "${TEMP_FILE}" /usr/local/bin/butane
           rm "${TEMP_FILE}"
 
+      - name: Generate SSH Keypair
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
+
       - name: Create Ignition config and set permissions
-        env:
-          SSH_PUBLIC_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PUBLIC_KEY }}
         run: |
           set -euo pipefail
+          SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519.pub)
+          export SSH_PUBLIC_KEY
           envsubst <run0edit/integration-test/butane-config.yml >config.bu
           IGNITION_DIR="/var/lib/libvirt/boot"
           IGNITION_FILE="${IGNITION_DIR}/config.ign"
@@ -113,12 +119,8 @@ jobs:
           sleep 180
 
       - name: Run integration tests
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.INTEGRATION_TEST_SSH_PRIVATE_KEY }}
         run: |
           mkdir -m 700 -p ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${VM_IP}" >> ~/.ssh/known_hosts
           ssh -o ConnectTimeout=60 -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@"${VM_IP}" \
             'cd /home/core/run0edit; python3 -m unittest integration-test/integration_tests.py'
