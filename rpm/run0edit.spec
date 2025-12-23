@@ -28,13 +28,24 @@ copied back to the original location when the editor is closed.
 %build
 
 %install
-mkdir -m 755 -p %{buildroot}%{_bindir} %{buildroot}%{_libexecdir}/%{name} %{buildroot}%{_sysconfdir}/%{name}
+%define inner_script_dir %{_libexecdir}/%{name}
+%define inner_script_file %{inner_script_dir}/%{name}_inner.py
+
+%define editor_conf_dir %{_sysconfdir}/%{name}
+%define editor_conf_file %{editor_conf_dir}/editor.conf
+
+mkdir -m 755 -p %{buildroot}%{_bindir} %{buildroot}%{inner_script_dir} %{buildroot}%{editor_conf_dir}
+
 install -m 755 %{name}_main.py %{buildroot}%{_bindir}/%{name}
-install -m 644 %{name}_inner.py %{buildroot}%{_libexecdir}/%{name}/%{name}_inner.py
+install -m 644 %{name}_inner.py %{buildroot}%{inner_script_file}
+
+touch %{buildroot}%{editor_conf_file}
+chmod 644 %{buildroot}%{editor_conf_file}
 
 %files
 %{_bindir}/%{name}
-%{_libexecdir}/%{name}
+%{inner_script_dir}
+%config(noreplace) %{editor_conf_dir}
 
 %changelog
 * Tue Oct 28 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.5
