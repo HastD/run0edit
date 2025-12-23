@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.6] - 2025-12-22
+
+- Add `/etc/run0edit/editor.conf` to RPM spec as a config file. This ensures the config file will be created with the expected permissions if not already present. The file will be empty by default, which is ignored by `run0edit` when selecting which editor to use.
+
 ## [v0.5.5] - 2025-10-28
 
 - Add `--background` option to set or disable the background color. This behaves
@@ -143,6 +147,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.5.6]: https://github.com/HastD/run0edit/compare/v0.5.5...v0.5.6
 [v0.5.5]: https://github.com/HastD/run0edit/compare/v0.5.4...v0.5.5
 [v0.5.4]: https://github.com/HastD/run0edit/compare/v0.5.3...v0.5.4
 [v0.5.3]: https://github.com/HastD/run0edit/compare/v0.5.2...v0.5.3
