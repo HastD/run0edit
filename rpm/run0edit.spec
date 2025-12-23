@@ -1,5 +1,5 @@
 Name:           run0edit
-Version:        0.5.5
+Version:        0.5.6
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -48,6 +48,10 @@ chmod 644 %{buildroot}%{editor_conf_file}
 %config(noreplace) %{editor_conf_dir}
 
 %changelog
+* Mon Dec 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.6
+  - Update to version 0.5.6
+  - Add editor config file to RPM spec so it's automatically created with the
+    expected permissions on install.
 * Tue Oct 28 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.5
   - Update to version 0.5.5
 * Wed Oct 15 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.4
