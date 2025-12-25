@@ -59,7 +59,8 @@ from typing import Final
 
 __version__: Final[str] = "0.5.6"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
-INNER_SCRIPT_SHA256: Final[str] = "ca1ce317ddddcd4516755f9bd533b91303e883544e13a9af01e8535d3f0aa050"
+INNER_SCRIPT_B2: Final[str] = "\
+3b8dcb082887d574794e276c9f844a9e8307640a372eb8b252eea2a863c4d49429541f2561e512937a46dd8deffdf9b8ec040c061e993c05864dec69976d470a"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -104,13 +105,13 @@ SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
 
 
 def validate_inner_script() -> bool:
-    """Ensure inner script has expected SHA256 hash."""
+    """Ensure inner script has expected BLAKE2 hash."""
     try:
         with open(INNER_SCRIPT_PATH, "rb") as f:
-            file_hash = hashlib.sha256(f.read())
+            file_hash = hashlib.blake2b(f.read())
     except OSError:
         return False
-    return file_hash.hexdigest() == INNER_SCRIPT_SHA256
+    return file_hash.hexdigest() == INNER_SCRIPT_B2
 
 
 def readonly_filesystem(path: str) -> bool | None:
