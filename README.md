@@ -23,9 +23,15 @@ original file, with a randomly generated suffix to avoid conflicts with existing
 files.
 
 The choice of editor can be customized by writing the absolute path to a text
-editor (for example, `/usr/bin/vim`) to the file `/etc/run0edit/editor.conf`, or
-using the `--editor` command-line option. If this path does not point to an
-executable file, `run0edit` will default to using `nano` or `vi`.
+editor (for example, `/usr/bin/vim`) to one of the following (listed in order of
+priority):
+
+- The `--editor` command-line argument to `run0edit`;
+- The environment variables `VISUAL` or `EDITOR`; or
+- The file `/etc/run0edit/editor.conf`.
+
+If none of these point to an executable file, `run0edit` will default to using
+`nano` or `vi`.
 
 > Note: Editors that make use of JIT compilation (such as Neovim built with
 > LuaJIT) might not work: as a security measure, `run0edit` makes use of systemd
