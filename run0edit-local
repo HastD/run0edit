@@ -1,4 +1,9 @@
 #!/bin/sh
+
+# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 # Run run0edit in local directory. Useful for testing.
 script="$(sed '/^INNER_SCRIPT_PATH:/s/".*"/"run0edit_inner.py"/' run0edit_main.py)"
 python3 -c "$script" "$@"

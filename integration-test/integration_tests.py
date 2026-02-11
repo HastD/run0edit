@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 """
 Integration tests for run0edit. Meant to run in a VM or container environment
 with passwordless run0.

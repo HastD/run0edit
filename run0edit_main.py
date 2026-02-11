@@ -1,45 +1,13 @@
 #!/usr/bin/env python3
 
-r"""
+# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+"""
 run0edit - edit a single file as root.
 
 Please report issues at: https://github.com/HastD/run0edit/issues
-
-Copyright (C) 2025 Daniel Hast
-
-SPDX-License-Identifier: MIT OR Apache-2.0
-
------
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the “Software”), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
------
-
-Licensed under the Apache License, Version 2.0 (the "License").
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
 import argparse
@@ -60,7 +28,7 @@ from typing import Final
 __version__: Final[str] = "0.5.6"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_B2: Final[str] = "\
-3b8dcb082887d574794e276c9f844a9e8307640a372eb8b252eea2a863c4d49429541f2561e512937a46dd8deffdf9b8ec040c061e993c05864dec69976d470a"
+9f596fb81d6b422fc2a53d9bde907f90daca814f9fd6107169dea8ed0e01e5740fbe22eb75dfc463a7762a64fd189fd3eb0799edfece8470ea566d50d68eade6"
 DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
