@@ -25,7 +25,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import Final
 
-__version__: Final[str] = "0.5.6"
+__version__: Final[str] = "0.5.7"
 INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
 INNER_SCRIPT_B2: Final[str] = "\
 9f596fb81d6b422fc2a53d9bde907f90daca814f9fd6107169dea8ed0e01e5740fbe22eb75dfc463a7762a64fd189fd3eb0799edfece8470ea566d50d68eade6"

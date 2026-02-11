@@ -6,12 +6,15 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
-## [Unreleased]
+## [v0.5.7] - 2026-02-11
 
 - Allow specifying editor using `VISUAL` or `EDITOR` environment variables.
+  ([#64](https://github.com/HastD/run0edit/pull/64))
 - Make repository compliant with
   [REUSE Specification, Version 3.3](https://reuse.software/spec-3.3/).
+  ([#62](https://github.com/HastD/run0edit/pull/62))
 - Use BLAKE2 hash instead of SHA-256 for inner script checksum.
+  ([#54](https://github.com/HastD/run0edit/pull/54))
 
 ## [v0.5.6] - 2025-12-22
 
@@ -19,6 +22,7 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
   config file will be created with the expected permissions if not already
   present. The file will be empty by default, which is ignored by `run0edit`
   when selecting which editor to use.
+  ([#52](https://github.com/HastD/run0edit/pull/52))
 
 ## [v0.5.5] - 2025-10-28
 
@@ -163,7 +167,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.6...HEAD
+[v0.5.7]: https://github.com/HastD/run0edit/compare/v0.5.6...v0.5.7
 [v0.5.6]: https://github.com/HastD/run0edit/compare/v0.5.5...v0.5.6
 [v0.5.5]: https://github.com/HastD/run0edit/compare/v0.5.4...v0.5.5
 [v0.5.4]: https://github.com/HastD/run0edit/compare/v0.5.3...v0.5.4
