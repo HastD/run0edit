@@ -144,6 +144,16 @@ def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> str | None:
     return editor
 
 
+def get_editor_path_from_env() -> str | None:
+    """Get path to editor executable from environment variables."""
+    for env_var in ("VISUAL", "EDITOR"):
+        editor_path = os.environ.get(env_var)
+        if editor_path is not None and is_valid_executable(editor_path):
+            return editor_path
+
+    return None
+
+
 def get_fallback_editor_path(fallbacks: Sequence[str] | None = None) -> str | None:
     """Get fallback editor path."""
     if fallbacks is None:
@@ -162,6 +172,9 @@ def get_editor_path(provided_editor: str | None = None) -> str:
         if not is_valid_executable(provided_editor):
             raise InvalidProvidedEditorError(provided_editor)
         return os.path.realpath(provided_editor)
+    editor = get_editor_path_from_env()
+    if editor is not None:
+        return editor
     editor = get_editor_path_from_conf()
     if editor is not None:
         return editor
@@ -417,7 +430,10 @@ def ansi_color(color: str) -> str:
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments using argparse."""
     description = "run0edit allows a permitted user to edit a file as root."
-    epilog = f"The default choice of text editor may be configured at {DEFAULT_CONF_PATH}"
+    epilog = f"""\
+    The default choice of text editor may be configured at {DEFAULT_CONF_PATH},
+    or by setting the VISUAL or EDITOR environment variables."
+    """
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
     parser.add_argument("--editor", help="absolute path to text editor")

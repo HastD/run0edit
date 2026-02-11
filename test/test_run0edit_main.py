@@ -165,6 +165,59 @@ class TestGetEditorPathFromConf(unittest.TestCase):
             run0edit.get_editor_path_from_conf()
 
 
+@mock.patch.dict("os.environ", {}, clear=True)
+@mock.patch("run0edit_main.is_valid_executable")
+class TestGetEditorPathFromEnv(unittest.TestCase):
+    """Tests for get_editor_path_from_env"""
+
+    def test_empty_env(self, mock_is_valid):
+        """Should return None if environment is empty"""
+        self.assertIsNone(run0edit.get_editor_path_from_env())
+        self.assertFalse(mock_is_valid.called)
+
+    @mock.patch.dict("os.environ", {"VISUAL": "/visual-editor"})
+    def test_visual_valid(self, mock_is_valid):
+        """Should return valid editor found in VISUAL"""
+        mock_is_valid.return_value = True
+        self.assertEqual(run0edit.get_editor_path_from_env(), "/visual-editor")
+        self.assertEqual(mock_is_valid.call_args_list, [(("/visual-editor",), {})])
+
+    @mock.patch.dict("os.environ", {"VISUAL": "/invalid"})
+    def test_visual_invalid(self, mock_is_valid):
+        """Should not return invalid editor found in VISUAL"""
+        mock_is_valid.return_value = False
+        self.assertIsNone(run0edit.get_editor_path_from_env())
+        self.assertEqual(mock_is_valid.call_args_list, [(("/invalid",), {})])
+
+    @mock.patch.dict("os.environ", {"EDITOR": "/editor"})
+    def test_editor_valid(self, mock_is_valid):
+        """Should return valid editor found in EDITOR"""
+        mock_is_valid.return_value = True
+        self.assertEqual(run0edit.get_editor_path_from_env(), "/editor")
+        self.assertEqual(mock_is_valid.call_args_list, [(("/editor",), {})])
+
+    @mock.patch.dict("os.environ", {"EDITOR": "/invalid"})
+    def test_editor_invalid(self, mock_is_valid):
+        """Should not return invalid editor found in EDITOR"""
+        mock_is_valid.return_value = False
+        self.assertIsNone(run0edit.get_editor_path_from_env())
+        self.assertEqual(mock_is_valid.call_args_list, [(("/invalid",), {})])
+
+    @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
+    def test_visual_preferred_over_editor(self, mock_is_valid):
+        """Should prefer editor in VISUAL over editor in EDITOR"""
+        mock_is_valid.return_value = True
+        self.assertEqual(run0edit.get_editor_path_from_env(), "/visual")
+        self.assertEqual(mock_is_valid.call_args_list, [(("/visual",), {})])
+
+    @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
+    def test_valid_editor_invalid_visual(self, mock_is_valid):
+        """Should fall back to editor in EDITOR if editor in VISUAL is invalid"""
+        mock_is_valid.side_effect = [False, True]
+        self.assertEqual(run0edit.get_editor_path_from_env(), "/editor")
+        self.assertEqual(mock_is_valid.call_args_list, [(("/visual",), {}), (("/editor",), {})])
+
+
 class TestGetFallbackEditorPath(unittest.TestCase):
     """Tests for get_fallback_editor_path"""
 
@@ -186,47 +239,65 @@ class TestGetFallbackEditorPath(unittest.TestCase):
 
 
 @mock.patch("run0edit_main.get_fallback_editor_path")
+@mock.patch("run0edit_main.get_editor_path_from_env")
 @mock.patch("run0edit_main.get_editor_path_from_conf")
 class TestGetEditorPath(unittest.TestCase):
     """Tests for get_editor_path"""
 
-    def test_valid_provided(self, mock_from_conf, mock_fallback):
+    def test_valid_provided(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should return provided editor path if valid"""
         editor = run0edit.get_editor_path("/bin/true")
         self.assertEqual(editor, os.path.realpath("/bin/true"))
+        self.assertFalse(mock_from_env.called)
         self.assertFalse(mock_from_conf.called)
         self.assertFalse(mock_fallback.called)
 
-    def test_invalid_provided(self, mock_from_conf, mock_fallback):
+    def test_invalid_provided(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should raise exception if provided invalid editor path"""
         with self.assertRaisesRegex(run0edit.InvalidProvidedEditorError, "/dev/null"):
             run0edit.get_editor_path("/dev/null")
+        self.assertFalse(mock_from_env.called)
         self.assertFalse(mock_from_conf.called)
         self.assertFalse(mock_fallback.called)
 
-    def test_gets_from_conf_if_not_provided(self, mock_from_conf, mock_fallback):
-        """Should get editor from conf file if not provided"""
+    def test_gets_from_env_if_not_provided(self, mock_from_conf, mock_from_env, mock_fallback):
+        """Should get editor from environment if not provided"""
+        editor = mock.sentinel.editor_from_env
+        mock_from_env.return_value = editor
+        self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_env.call_count, 1)
+        self.assertFalse(mock_from_conf.called)
+        self.assertFalse(mock_fallback.called)
+
+    def test_gets_from_conf_if_not_from_env(self, mock_from_conf, mock_from_env, mock_fallback):
+        """Should get editor from conf file if not provided or found in environment"""
         editor = mock.sentinel.editor_from_conf
+        mock_from_env.return_value = None
         mock_from_conf.return_value = editor
         self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_env.call_count, 1)
         self.assertEqual(mock_from_conf.call_args, ((), {}))
         self.assertFalse(mock_fallback.called)
 
-    def test_gets_fallback_if_no_conf(self, mock_from_conf, mock_fallback):
+    def test_gets_fallback_if_no_conf(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should get editor from conf file if not provided"""
         editor = mock.sentinel.fallback_editor
+        mock_from_env.return_value = None
         mock_from_conf.return_value = None
         mock_fallback.return_value = editor
         self.assertEqual(run0edit.get_editor_path(), editor)
+        self.assertEqual(mock_from_env.call_count, 1)
         self.assertEqual(mock_from_conf.call_args, ((), {}))
         self.assertEqual(mock_fallback.call_args, ((), {}))
 
-    def test_no_conf_no_fallback(self, mock_from_conf, mock_fallback):
+    def test_no_conf_no_fallback(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should raise expected error if fallback fails to find editor"""
+        mock_from_env.return_value = None
         mock_from_conf.return_value = None
         mock_fallback.return_value = None
         with self.assertRaises(run0edit.EditorNotFoundError):
             run0edit.get_editor_path()
+        self.assertEqual(mock_from_env.call_count, 1)
         self.assertEqual(mock_from_conf.call_args, ((), {}))
         self.assertEqual(mock_fallback.call_args, ((), {}))
 
@@ -1001,6 +1072,7 @@ class TestCatchUsageMistake(unittest.TestCase):
         )
 
 
+@mock.patch.dict("os.environ", {}, clear=True)
 @mock.patch("sys.stderr", new_callable=io.StringIO)
 @mock.patch("sys.stdout", new_callable=io.StringIO)
 @mock.patch("run0edit_main.run")
