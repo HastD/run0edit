@@ -166,56 +166,63 @@ class TestGetEditorPathFromConf(unittest.TestCase):
 
 
 @mock.patch.dict("os.environ", {}, clear=True)
-@mock.patch("run0edit_main.is_valid_executable")
+@mock.patch("shutil.which")
 class TestGetEditorPathFromEnv(unittest.TestCase):
     """Tests for get_editor_path_from_env"""
 
-    def test_empty_env(self, mock_is_valid):
+    def test_empty_env(self, mock_which):
         """Should return None if environment is empty"""
         self.assertIsNone(run0edit.get_editor_path_from_env())
-        self.assertFalse(mock_is_valid.called)
+        self.assertFalse(mock_which.called)
 
     @mock.patch.dict("os.environ", {"VISUAL": "/visual-editor"})
-    def test_visual_valid(self, mock_is_valid):
+    def test_visual_valid(self, mock_which):
         """Should return valid editor found in VISUAL"""
-        mock_is_valid.return_value = True
+        mock_which.side_effect = lambda s: s
         self.assertEqual(run0edit.get_editor_path_from_env(), "/visual-editor")
-        self.assertEqual(mock_is_valid.call_args_list, [(("/visual-editor",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/visual-editor",), {})])
+
+    @mock.patch.dict("os.environ", {"VISUAL": "relative-editor"})
+    def test_relative_visual_valid(self, mock_which):
+        """Should return valid relative editor found in VISUAL"""
+        mock_which.side_effect = lambda s: f"/usr/bin/{s}"
+        self.assertEqual(run0edit.get_editor_path_from_env(), "/usr/bin/relative-editor")
+        self.assertEqual(mock_which.call_args_list, [(("relative-editor",), {})])
 
     @mock.patch.dict("os.environ", {"VISUAL": "/invalid"})
-    def test_visual_invalid(self, mock_is_valid):
+    def test_visual_invalid(self, mock_which):
         """Should not return invalid editor found in VISUAL"""
-        mock_is_valid.return_value = False
+        mock_which.return_value = None
         self.assertIsNone(run0edit.get_editor_path_from_env())
-        self.assertEqual(mock_is_valid.call_args_list, [(("/invalid",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/invalid",), {})])
 
     @mock.patch.dict("os.environ", {"EDITOR": "/editor"})
-    def test_editor_valid(self, mock_is_valid):
+    def test_editor_valid(self, mock_which):
         """Should return valid editor found in EDITOR"""
-        mock_is_valid.return_value = True
+        mock_which.side_effect = lambda s: s
         self.assertEqual(run0edit.get_editor_path_from_env(), "/editor")
-        self.assertEqual(mock_is_valid.call_args_list, [(("/editor",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/editor",), {})])
 
     @mock.patch.dict("os.environ", {"EDITOR": "/invalid"})
-    def test_editor_invalid(self, mock_is_valid):
+    def test_editor_invalid(self, mock_which):
         """Should not return invalid editor found in EDITOR"""
-        mock_is_valid.return_value = False
+        mock_which.return_value = None
         self.assertIsNone(run0edit.get_editor_path_from_env())
-        self.assertEqual(mock_is_valid.call_args_list, [(("/invalid",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/invalid",), {})])
 
     @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
-    def test_visual_preferred_over_editor(self, mock_is_valid):
+    def test_visual_preferred_over_editor(self, mock_which):
         """Should prefer editor in VISUAL over editor in EDITOR"""
-        mock_is_valid.return_value = True
+        mock_which.side_effect = lambda s: s
         self.assertEqual(run0edit.get_editor_path_from_env(), "/visual")
-        self.assertEqual(mock_is_valid.call_args_list, [(("/visual",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/visual",), {})])
 
     @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
-    def test_valid_editor_invalid_visual(self, mock_is_valid):
+    def test_valid_editor_invalid_visual(self, mock_which):
         """Should fall back to editor in EDITOR if editor in VISUAL is invalid"""
-        mock_is_valid.side_effect = [False, True]
+        mock_which.side_effect = [None, "/editor"]
         self.assertEqual(run0edit.get_editor_path_from_env(), "/editor")
-        self.assertEqual(mock_is_valid.call_args_list, [(("/visual",), {}), (("/editor",), {})])
+        self.assertEqual(mock_which.call_args_list, [(("/visual",), {}), (("/editor",), {})])
 
 
 class TestGetFallbackEditorPath(unittest.TestCase):
@@ -1131,14 +1138,12 @@ class TestMain(unittest.TestCase):
     @mock.patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.get_editor_path_from_conf")
-    @mock.patch("run0edit_main.is_valid_executable")
-    def test_valid_editor(
-        self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
-    ):
+    @mock.patch("shutil.which")
+    def test_valid_editor(self, mock_which, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should use valid editor passed as command-line argument"""
-        mock_valid_exe.return_value = True
+        mock_which.side_effect = lambda s: s
         run0edit.main()
-        self.assertEqual(mock_valid_exe.call_args.args, ("/usr/bin/butterfly",))
+        self.assertEqual(mock_which.call_args.args, ("/usr/bin/butterfly",))
         self.assertFalse(mock_editor_path.called)
         self.assertEqual(mock_run.call_args.args, ("asdf", "/usr/bin/butterfly"))
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -1147,14 +1152,12 @@ class TestMain(unittest.TestCase):
     @mock.patch("sys.argv", ["run0edit", "--editor=/etc/hosts", "asdf"])
     @mock.patch("run0edit_main.validate_inner_script", lambda: True)
     @mock.patch("run0edit_main.get_editor_path_from_conf")
-    @mock.patch("run0edit_main.is_valid_executable")
-    def test_invalid_editor(
-        self, mock_valid_exe, mock_editor_path, mock_run, mock_stdout, mock_stderr
-    ):
+    @mock.patch("shutil.which")
+    def test_invalid_editor(self, mock_which, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should fail if invalid editor passed as command-line argument"""
-        mock_valid_exe.return_value = False
+        mock_which.return_value = None
         self.assertEqual(run0edit.main(), 1)
-        self.assertEqual(mock_valid_exe.call_args.args, ("/etc/hosts",))
+        self.assertEqual(mock_which.call_args.args, ("/etc/hosts",))
         self.assertFalse(mock_editor_path.called)
         self.assertFalse(mock_run.called)
         self.assertEqual(mock_stdout.getvalue(), "")

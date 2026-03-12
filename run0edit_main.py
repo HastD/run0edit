@@ -147,8 +147,11 @@ def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> str | None:
 def get_editor_path_from_env() -> str | None:
     """Get path to editor executable from environment variables."""
     for env_var in ("VISUAL", "EDITOR"):
-        editor_path = os.environ.get(env_var)
-        if editor_path is not None and is_valid_executable(editor_path):
+        editor = os.environ.get(env_var)
+        if editor is None:
+            continue
+        editor_path = shutil.which(editor)
+        if editor_path is not None:
             return editor_path
 
     return None
@@ -169,7 +172,8 @@ def get_fallback_editor_path(fallbacks: Sequence[str] | None = None) -> str | No
 def get_editor_path(provided_editor: str | None = None) -> str:
     """Get the editor path from a provided path, conf file, or fallback."""
     if provided_editor is not None:
-        if not is_valid_executable(provided_editor):
+        editor_path = shutil.which(provided_editor)
+        if editor_path is None:
             raise InvalidProvidedEditorError(provided_editor)
         return os.path.realpath(provided_editor)
     editor = get_editor_path_from_env()
