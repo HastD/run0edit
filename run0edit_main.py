@@ -15,7 +15,6 @@ import dataclasses
 import enum
 import hashlib
 import os
-import pathlib
 import shutil
 import stat
 import subprocess  # nosec
@@ -23,6 +22,7 @@ import sys
 import tempfile
 import textwrap
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Final
 
 __version__: Final[str] = "0.5.7"
@@ -236,8 +236,8 @@ class PathExists(enum.Enum):
 
 def check_directory_existence(path: str) -> PathExists:
     """Check whether the directory containing the path exists."""
-    real_path = pathlib.Path(path).resolve()
-    partial = pathlib.Path("/")
+    real_path = Path(path).resolve()
+    partial = Path("/")
     # Walk the directory tree from the filesystem root to the target directory
     for part in real_path.parts[1:-1]:
         try:
@@ -262,11 +262,15 @@ def check_directory_existence(path: str) -> PathExists:
 class TempFile:
     """A temporary file."""
 
+    directory: str
+    path: str
+
     def __init__(self, filename: str):
         """Create a temporary file with a random suffix appended to the given filename."""
         self.directory = tempfile.mkdtemp(prefix="run0edit-")
         name = os.path.basename(filename)
-        self.path = tempfile.mkstemp(prefix=f"{name:.64}.", dir=self.directory)[1]
+        self.path = f"{self.directory}/{name:.64}"
+        Path(self.path).touch(mode=0o600, exist_ok=False)
 
     def remove(self, *, only_if_empty: bool = False) -> None:
         """Delete the temporary file"""
