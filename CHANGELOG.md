@@ -6,6 +6,14 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [v0.5.8] - 2026-03-12
+
+- Make temporary file have same base filename as original file.
+  ([#68](https://github.com/HastD/run0edit/pull/68))
+- Allow non-absolute editor specifications in `VISUAL` or `EDITOR` environment
+  variables and `--editor` argument.
+  ([#69](https://github.com/HastD/run0edit/pull/69))
+
 ## [v0.5.7] - 2026-02-11
 
 - Allow specifying editor using `VISUAL` or `EDITOR` environment variables.
@@ -167,6 +175,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.5.8]: https://github.com/HastD/run0edit/compare/v0.5.7...v0.5.8
 [v0.5.7]: https://github.com/HastD/run0edit/compare/v0.5.6...v0.5.7
 [v0.5.6]: https://github.com/HastD/run0edit/compare/v0.5.5...v0.5.6
 [v0.5.5]: https://github.com/HastD/run0edit/compare/v0.5.4...v0.5.5

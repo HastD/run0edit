@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.5.7
+Version:        0.5.8
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -52,6 +52,8 @@ chmod 644 %{buildroot}%{editor_conf_file}
 %config(noreplace) %{editor_conf_dir}
 
 %changelog
+* Thu Mar 12 2026 Daniel Hast <hast.daniel@protonmail.com> v0.5.8
+  - Update to version 0.5.8
 * Wed Feb 11 2026 Daniel Hast <hast.daniel@protonmail.com> v0.5.7
   - Update to version 0.5.7
 * Mon Dec 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.6

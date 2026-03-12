@@ -4,7 +4,7 @@
 
 [project]
 name = "run0edit"
-version = "0.5.7"
+version = "0.5.8"
 requires-python = ">= 3.10"
 authors = [
     {name = "Daniel Hast"},
@@ -15,7 +15,7 @@ maintainers = [{name = "Daniel Hast"}]
 description = "run0edit allows a permitted user to edit a file as root using run0."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+license-files = ["LICENSES/*.txt"]
 
 [project.urls]
 Repository = "https://github.com/HastD/run0edit"
