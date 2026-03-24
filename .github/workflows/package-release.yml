@@ -24,7 +24,7 @@ jobs:
         run: |
           version=$(grep -oP '^Version:\s*\K\S+' rpm/run0edit.spec)
           mkdir -p "run0edit-$version"
-          find . -maxdepth 1 -type f '!' -name '.*' -execdir cp '{}' "run0edit-$version/" +
+          find . -maxdepth 1 -type f '!' -name '.*' -execdir cp -p -t "run0edit-$version" '{}' +
           tar -cvf "run0edit-$version.tar.gz" "run0edit-$version"
 
       - name: Upload source as artifact
