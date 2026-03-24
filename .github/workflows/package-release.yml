@@ -121,7 +121,6 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --draft -t "${GITHUB_REF_NAME}" \
-            run0edit/run0edit \
             source-archive/run0edit-*.tar.gz \
             deb/run0edit_*.deb \
             rpm/run0edit-*.noarch.rpm \
