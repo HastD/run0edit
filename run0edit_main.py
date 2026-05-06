@@ -170,16 +170,16 @@ def get_fallback_editor_path(fallbacks: Sequence[str] | None = None) -> str | No
 
 
 def get_editor_path(provided_editor: str | None = None) -> str:
-    """Get the editor path from a provided path, conf file, or fallback."""
+    """Get the editor path from a provided path, conf file, env var, or fallback."""
     if provided_editor is not None:
         editor_path = shutil.which(provided_editor)
         if editor_path is None:
             raise InvalidProvidedEditorError(provided_editor)
         return os.path.realpath(provided_editor)
-    editor = get_editor_path_from_env()
+    editor = get_editor_path_from_conf()
     if editor is not None:
         return editor
-    editor = get_editor_path_from_conf()
+    editor = get_editor_path_from_env()
     if editor is not None:
         return editor
     editor = get_fallback_editor_path()
