@@ -26,8 +26,8 @@ The choice of editor can be customized by writing the path to a text editor (for
 example, `/usr/bin/vim`) to one of the following (listed in order of priority):
 
 - The `--editor` command-line argument to `run0edit`;
-- The environment variables `VISUAL` or `EDITOR`; or
-- The file `/etc/run0edit/editor.conf` (must be an absolute path).
+- The file `/etc/run0edit/editor.conf` (must be an absolute path); or
+- The environment variables `VISUAL` or `EDITOR`.
 
 If none of these point to an executable file, `run0edit` will default to using
 `nano` or `vi`.
