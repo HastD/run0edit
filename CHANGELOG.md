@@ -6,6 +6,12 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [v0.5.9] - 2026-05-06
+
+- Make the configuration file at `/etc/run0edit/editor.conf` higher priority
+  than the environment variables `VISUAL` and `EDITOR` for editor selection.
+  ([#82](https://github.com/HastD/run0edit/pull/82))
+
 ## [v0.5.8] - 2026-03-12
 
 - Make temporary file have same base filename as original file.
@@ -175,6 +181,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.5.9]: https://github.com/HastD/run0edit/compare/v0.5.8...v0.5.9
 [v0.5.8]: https://github.com/HastD/run0edit/compare/v0.5.7...v0.5.8
 [v0.5.7]: https://github.com/HastD/run0edit/compare/v0.5.6...v0.5.7
 [v0.5.6]: https://github.com/HastD/run0edit/compare/v0.5.5...v0.5.6
