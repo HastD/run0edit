@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+name: Python tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unittest:
+    name: Run unit tests & report coverage
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Install coverage.py
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install coverage
+
+      - name: Run unit tests
+        run: |
+          coverage run -m unittest
+
+      - name: Report coverage
+        run: |
+          coverage report -m --skip-empty --fail-under=100
+
+  integration-test:
+    name: Run integration tests
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Set up passwordless authentication
+        run: |
+          cat <<EOF | sudo tee /etc/polkit-1/rules.d/10-systemd-nopasswd.rules >/dev/null
+          polkit.addRule(function(action, subject) {
+              if (subject.user === "${USER}") {
+                  return polkit.Result.YES;
+              }
+          });
+          EOF
+
+      - name: Run integration tests
+        run: |
+          python3 -m unittest integration-test/integration_tests.py
