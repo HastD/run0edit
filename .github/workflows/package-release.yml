@@ -36,7 +36,7 @@ jobs:
   build_rpm:
     name: Build RPM package
     needs: build_source_archive
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: fedora@sha256:498c452f32a739b61f0ef215bce9924ebc4866cbe44710f58157d77723b7a6d2 # v44
     steps:
