@@ -55,8 +55,8 @@ jobs:
 
   rpmlint:
     name: Lint RPM spec
-    runs-on: ubuntu-latest
-    container: fedora:43
+    runs-on: ubuntu-26.04
+    container: fedora:44 # zizmor: ignore[unpinned-images]
     steps:
       - name: Install dependencies
         shell: bash
