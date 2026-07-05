@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+SPDX-FileCopyrightText: (c) 2025-2026 run0edit authors <https://github.com/HastD/run0edit>
 
 SPDX-License-Identifier: Apache-2.0 OR MIT
 -->
@@ -9,7 +9,9 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 ## [Unreleased]
 
 - Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
+  ([#93](https://github.com/HastD/run0edit/pull/93))
 - Switch to using Meson build system.
+  ([#94](https://github.com/HastD/run0edit/pull/94))
 
 ## [v0.5.9] - 2026-05-06
 

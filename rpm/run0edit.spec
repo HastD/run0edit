@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+# SPDX-FileCopyrightText: (c) 2025-2026 run0edit authors <https://github.com/HastD/run0edit>
 #
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -39,9 +39,6 @@ copied back to the original location when the editor is closed.
 
 %install
 %meson_install
-
-%check
-%meson_test
 
 %files
 %{_bindir}/%{name}

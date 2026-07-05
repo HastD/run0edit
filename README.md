@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+SPDX-FileCopyrightText: (c) 2025-2026 run0edit authors <https://github.com/HastD/run0edit>
 
 SPDX-License-Identifier: Apache-2.0 OR MIT
 -->
@@ -61,9 +61,10 @@ Manual installation:
 ```sh
 git clone https://github.com/HastD/run0edit
 cd run0edit
-run0 mkdir -p /usr/libexec/run0edit
-run0 install -m 755 run0edit_main.py /usr/bin/run0edit
-run0 install -m 644 run0edit_inner.py /usr/libexec/run0edit/
+mkdir -p build
+meson setup build -Dprefix=/usr
+meson compile -C build
+run0 meson install -C build
 ```
 
 Note: `run0edit` requires systemd version 256 or newer.
