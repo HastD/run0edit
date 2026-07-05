@@ -6,6 +6,10 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [Unreleased]
+
+- Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
+
 ## [v0.5.9] - 2026-05-06
 
 - Make the configuration file at `/etc/run0edit/editor.conf` higher priority
@@ -181,6 +185,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.9...HEAD
 [v0.5.9]: https://github.com/HastD/run0edit/compare/v0.5.8...v0.5.9
 [v0.5.8]: https://github.com/HastD/run0edit/compare/v0.5.7...v0.5.8
 [v0.5.7]: https://github.com/HastD/run0edit/compare/v0.5.6...v0.5.7

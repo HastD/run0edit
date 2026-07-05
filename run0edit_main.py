@@ -132,7 +132,8 @@ def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> str | None:
     """Get path to editor executable from conf file."""
     try:
         with open(conf_path, encoding="utf8") as f:
-            editor = f.read().strip()
+            # Get the first non-empty line that doesn't start with "#"
+            editor = next((line for line in map(str.strip, f) if not line.startswith("#")), None)
     except PermissionError as e:
         raise UnreadableEditorConfError from e
     except OSError:

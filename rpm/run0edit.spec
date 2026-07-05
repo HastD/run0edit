@@ -32,54 +32,52 @@ copied back to the original location when the editor is closed.
 %build
 
 %install
-%define inner_script_dir %{_libexecdir}/%{name}
-%define inner_script_file %{inner_script_dir}/%{name}_inner.py
-
-%define editor_conf_dir %{_sysconfdir}/%{name}
-%define editor_conf_file %{editor_conf_dir}/editor.conf
-
-mkdir -m 755 -p %{buildroot}%{_bindir} %{buildroot}%{inner_script_dir} %{buildroot}%{editor_conf_dir}
-
-install -m 755 %{name}_main.py %{buildroot}%{_bindir}/%{name}
-install -m 644 %{name}_inner.py %{buildroot}%{inner_script_file}
-
-touch %{buildroot}%{editor_conf_file}
-chmod 644 %{buildroot}%{editor_conf_file}
+install -Dp -m 755 -t %{buildroot}%{_bindir} %{name}_main.py
+install -Dp -m 644 -t %{buildroot}%{_libexecdir}/%{name} %{name}_inner.py
+install -Dp -m 644 -t %{buildroot}%{_sysconfdir}/%{name} data/editor.conf
 
 %files
 %{_bindir}/%{name}
-%{inner_script_dir}
-%config(noreplace) %{editor_conf_dir}
+%{_libexecdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}
 
 %changelog
-* Wed May 06 2026 Daniel Hast <hast.daniel@protonmail.com> v0.5.9
-  - Update to version 0.5.9
-* Thu Mar 12 2026 Daniel Hast <hast.daniel@protonmail.com> v0.5.8
-  - Update to version 0.5.8
-* Wed Feb 11 2026 Daniel Hast <hast.daniel@protonmail.com> v0.5.7
-  - Update to version 0.5.7
-* Mon Dec 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.6
-  - Update to version 0.5.6
-  - Add editor config file to RPM spec so it's automatically created with the
-    expected permissions on install.
-* Tue Oct 28 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.5
-  - Update to version 0.5.5
-* Wed Oct 15 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.4
-  - Update to version 0.5.4
-  - Increase minimum required Python version to 3.10.
-  - Add python3-devel build dependency.
-* Mon Aug 18 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.3
-  - Update to version 0.5.3
-  - Specify remote source URL to simplify Copr builds.
+* Wed May 06 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.9
+- Make the global configuration file higher priority than environment variables
+  for editor selection.
+
+* Thu Mar 12 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.8
+- Make temporary files have same base filename as the original file.
+- Allow non-absolute editor specifications in environment variables.
+
+* Wed Feb 11 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.7
+- Allow specifying editor via environment variables.
+- Use BLAKE2 instead of SHA-256 for inner script checksum.
+
+* Mon Dec 22 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.6
+- Add editor config file to RPM spec so it's automatically created with the
+  expected permissions on install.
+
+* Tue Oct 28 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.5
+- Add `--background` option to set or disable background color.
+
+* Wed Oct 15 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.4
+- Increase minimum required Python version to 3.10.
+- Improve error messages.
+
+* Mon Aug 18 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.3
+- Exit with an error if config file exists but is unreadable.
+
 * Sat Jun 21 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.2
-  - Update to version 0.5.2
-* Tue Jun 17 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.1
-  - Update to version 0.5.1
-* Mon Jun 16 2025 Daniel Hast <hast.daniel@protonmail.com> v0.5.0
-  - Update to version 0.5.0
-  - Python rewrite: install Python scripts in place of old shell script
-  - Fix systemd and Python version requirements
-  - Add `Recommends: e2fsprogs` for immutable attribute support.
-  - Remove `BuildRequires: python3` as there's no longer a build process.
-* Thu May 22 2025 Daniel Hast <hast.daniel@protonmail.com> v0.4.4
-  - Initial RPM release
+- Fixed sandbox bug.
+- Fixed SELinux denying certain custom editors.
+
+* Tue Jun 17 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.1
+- Warn about likely incorrect usage with first argument that looks like a
+  command name.
+
+* Mon Jun 16 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.5.0
+- Rewrote script in Python
+
+* Thu May 22 2025 Daniel Hast <hast.daniel@protonmail.com> - v0.4.4
+- Initial RPM release
