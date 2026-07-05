@@ -18,8 +18,12 @@ concurrency:
 
 jobs:
   unittest:
-    name: Run unit tests & report coverage
-    runs-on: ubuntu-slim
+    name: Run Python unit tests and linters
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -28,20 +32,17 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install coverage.py
+      - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip install coverage
+          pip install coverage meson ruff ty
+          sudo apt install just
 
-      - name: Run unit tests
+      - name: Run tests
         run: |
-          coverage run -m unittest
-
-      - name: Report coverage
-        run: |
-          coverage report -m --skip-empty --fail-under=100
+          just test
 
   integration-test:
     name: Run integration tests
@@ -56,6 +57,11 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install meson
+
       - name: Set up passwordless authentication
         run: |
           cat <<EOF | sudo tee /etc/polkit-1/rules.d/10-systemd-nopasswd.rules >/dev/null
@@ -68,4 +74,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          python3 -m unittest integration-test/integration_tests.py
+          mkdir -p build
+          meson setup build -Dprefix=/usr -Dunit-tests=disabled -Dintegration-tests=enabled
+          meson compile -C build
+          meson test -C build --verbose integration-test

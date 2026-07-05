@@ -9,6 +9,7 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 ## [Unreleased]
 
 - Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
+- Switch to using Meson build system.
 
 ## [v0.5.9] - 2026-05-06
 

@@ -25,11 +25,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-__version__: Final[str] = "0.5.9"
-INNER_SCRIPT_PATH: Final[str] = "/usr/libexec/run0edit/run0edit_inner.py"
+__version__: Final[str] = "@VERSION@"
+INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
 INNER_SCRIPT_B2: Final[str] = "\
 9f596fb81d6b422fc2a53d9bde907f90daca814f9fd6107169dea8ed0e01e5740fbe22eb75dfc463a7762a64fd189fd3eb0799edfece8470ea566d50d68eade6"
-DEFAULT_CONF_PATH: Final[str] = "/etc/run0edit/editor.conf"
+DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
     "@aio",
