@@ -1,0 +1,6 @@
+version = 1
+
+[[annotations]]
+path = "data/editor.conf"
+SPDX-FileCopyrightText = "(c) 2026 run0edit authors (https://github.com/HastD/run0edit)"
+SPDX-License-Identifier = "Apache-2.0 OR MIT"

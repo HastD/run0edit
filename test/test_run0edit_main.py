@@ -138,9 +138,22 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         self.assertEqual(editor, "/bin/true")
         remove_test_file(conf)
 
+    def test_read_conf_path_valid_with_comment(self):
+        """Should read and validate editor path from conf file, ignoring comment lines"""
+        conf = new_test_file(b"# this is a comment\n/bin/true \n")
+        editor = run0edit.get_editor_path_from_conf(conf)
+        self.assertEqual(editor, "/bin/true")
+        remove_test_file(conf)
+
     def test_read_conf_path_empty(self):
         """Should ignore empty conf file"""
-        conf = new_test_file(b"\n")
+        conf = new_test_file(b"")
+        self.assertIsNone(run0edit.get_editor_path_from_conf(conf))
+        remove_test_file(conf)
+
+    def test_read_conf_path_only_comments(self):
+        """Should ignore empty conf file"""
+        conf = new_test_file(b"# this is a comment\n  # another comment\n")
         self.assertIsNone(run0edit.get_editor_path_from_conf(conf))
         remove_test_file(conf)
 
