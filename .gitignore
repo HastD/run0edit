@@ -11,4 +11,5 @@
 .ssh
 .venv
 __pycache__
+build
 uv.lock

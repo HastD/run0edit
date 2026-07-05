@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright 2026 run0edit authors (https://github.com/HastD/run0edit)
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+option(
+  'unit-tests',
+  type: 'feature',
+  description: 'enable unit tests',
+  value: 'enabled',
+)
+
+option(
+  'integration-tests',
+  type: 'feature',
+  description: 'enable integration tests',
+  value: 'disabled',
+)

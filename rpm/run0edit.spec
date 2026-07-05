@@ -12,7 +12,11 @@ URL:            https://github.com/HastD/%{name}
 Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.tar.gz
 
 BuildArch:      noarch
+BuildRequires:  meson
+BuildRequires:  python3-coverage
 BuildRequires:  python3-devel >= 3.10
+BuildRequires:  ruff
+BuildRequires:  ty
 Requires:       python3 >= 3.10
 Requires:       systemd >= 256
 Recommends:     e2fsprogs
@@ -30,16 +34,20 @@ copied back to the original location when the editor is closed.
 %autosetup
 
 %build
+%meson
+%meson_build
 
 %install
-install -Dp -m 755 -t %{buildroot}%{_bindir} %{name}_main.py
-install -Dp -m 644 -t %{buildroot}%{_libexecdir}/%{name} %{name}_inner.py
-install -Dp -m 644 -t %{buildroot}%{_sysconfdir}/%{name} data/editor.conf
+%meson_install
+
+%check
+%meson_test
 
 %files
 %{_bindir}/%{name}
 %{_libexecdir}/%{name}
 %config(noreplace) %{_sysconfdir}/%{name}
+%license %{_defaultlicensedir}/%{name}
 
 %changelog
 * Wed May 06 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.9
