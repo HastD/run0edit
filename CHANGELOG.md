@@ -12,6 +12,8 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
   ([#93](https://github.com/HastD/run0edit/pull/93))
 - Switch to using Meson build system.
   ([#94](https://github.com/HastD/run0edit/pull/94))
+- Add man page.
+  ([#96](https://github.com/HastD/run0edit/pull/96))
 
 ## [v0.5.9] - 2026-05-06
 

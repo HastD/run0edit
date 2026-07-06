@@ -1,0 +1,92 @@
+<!--
+SPDX-FileCopyrightText: (c) 2026 run0edit authors <https://github.com/HastD/run0edit>
+
+SPDX-License-Identifier: Apache-2.0 OR MIT
+-->
+
+---
+title: run0edit
+section: 1
+header: run0edit user manual
+footer: run0edit @VERSION@
+date: 2026-07-05
+---
+
+# NAME
+
+run0edit - edit a file as root
+
+# SYNOPSIS
+
+run0edit [--editor EDITOR] [--background COLOR] [--no-prompt] FILE [FILES...]
+
+# DESCRIPTION
+
+**run0edit** allows a permitted user to edit a file as root, similar to
+**sudoedit** but using **run0** instead of **sudo** as the underlying privilege
+elevation mechanism.
+
+The target file (if it already exists) is copied to a temporary location and
+opened in an unprivileged editor; if modified, the edited file contents are
+copied back to the original location when the editor is closed.
+
+If the editor exits with an abnormal status code or copying the data back to the
+original location fails, then the temporary file will be left in a directory of
+the form **/tmp/run0edit-\*** (where **\*** is replaced with a randomly
+generated suffix).
+
+**run0edit** can also be used to edit files with the immutable attribute set.
+This works as follows:
+
+* The user edits the file as usual and exits the editor;
+* The immutable attribute is removed from the target file;
+* The changes are applied to the file;
+* The immutable attribute is immediately reapplied.
+
+# OPTIONS
+
+**--editor EDITOR**
+: Path to executable to be used as a text editor. The file name will be passed
+  as the first argument to the editor.
+
+**--background COLOR**
+: ANSI color to be set as the background color. Set as an empty string to
+  disable changing the background color. This option is passed on to **run0**.
+
+**--no-prompt**
+: Don't prompt for confirmation before editing a file with the immutable
+  attribute set.
+
+# ENVIRONMENT
+
+**VISUAL**, **EDITOR**
+: These environment variables are read for the default text editor if the
+  **--editor** argument is not used and there is no editor configured in
+  **editor.conf** (see **FILES** section below).
+: **VISUAL** has higher priority than **EDITOR**.
+
+# FILES
+
+**@SYSCONFDIR@/run0edit/editor.conf**
+: Global configuration file for the default editor used by **run0edit**. The
+  first line in this file that is not blank and does not begin with **#**
+  is interpreted as an absolute path to the editor executable.
+: If there is no such line, the file is ignored. If the path is not absolute or
+  does not point to an executable file, **run0edit** will give an error message
+  unless the **--editor** option is used.
+
+# EXIT STATUS
+
+On success, 0 is returned.
+
+If there is a usage error (for example, invalid arguments), 2 is returned.
+
+If another error occurs, 1 is returned.
+
+# BUGS
+
+Submit bug reports online at: <https://github.com/HastD/run0edit/issues>
+
+# SEE ALSO
+
+**run0(1)**, **sudoedit(8)**

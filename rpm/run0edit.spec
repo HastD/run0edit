@@ -13,6 +13,7 @@ Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.t
 
 BuildArch:      noarch
 BuildRequires:  meson
+BuildRequires:  pandoc
 BuildRequires:  python3-coverage
 BuildRequires:  python3-devel >= 3.10
 BuildRequires:  ruff
@@ -45,6 +46,7 @@ copied back to the original location when the editor is closed.
 %{_libexecdir}/%{name}
 %config(noreplace) %{_sysconfdir}/%{name}
 %license %{_defaultlicensedir}/%{name}
+%{_mandir}/man1/%{name}.1*
 
 %changelog
 * Wed May 06 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.9

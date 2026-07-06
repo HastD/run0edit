@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+# SPDX-FileCopyrightText: (c) 2025-2026 run0edit authors <https://github.com/HastD/run0edit>
 #
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -38,7 +38,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           pip install coverage meson ruff ty
-          sudo apt install just
+          sudo apt install just pandoc
 
       - name: Run tests
         run: |
@@ -61,6 +61,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           pip install meson
+          sudo apt install pandoc
 
       - name: Set up passwordless authentication
         run: |

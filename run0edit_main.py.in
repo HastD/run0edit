@@ -441,7 +441,7 @@ def parse_arguments() -> argparse.Namespace:
     description = "run0edit allows a permitted user to edit a file as root."
     epilog = f"""\
     The default choice of text editor may be configured at {DEFAULT_CONF_PATH},
-    or by setting the VISUAL or EDITOR environment variables."
+    or by setting the VISUAL or EDITOR environment variables.
     """
     parser = argparse.ArgumentParser(prog="run0edit", description=description, epilog=epilog)
     parser.add_argument("-v", "--version", action="version", version=f"run0edit {__version__}")
