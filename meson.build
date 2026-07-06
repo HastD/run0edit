@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 run0edit authors (https://github.com/HastD/run0edit)
+# SPDX-FileCopyrightText: (c) 2026 run0edit authors <https://github.com/HastD/run0edit>
 #
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -46,14 +46,7 @@ licensedir = get_option('licensedir')
 if licensedir == ''
     licensedir = datadir / 'licenses' / meson.project_name()
 endif
-licenses = [
-    './LICENSES/Apache-2.0.txt',
-    './LICENSES/MIT.txt',
-]
-install_data(
-    licenses,
-    install_dir: licensedir,
-)
+install_subdir('LICENSES', install_dir: licensedir, strip_directory: true)
 
 fs.copyfile('pyproject.toml')
 fs.copyfile('run0edit-local')

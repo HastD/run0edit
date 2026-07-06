@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2025-2026 run0edit authors (https://github.com/HastD/run0edit)
+# SPDX-FileCopyrightText: (c) 2025-2026 run0edit authors <https://github.com/HastD/run0edit>
 #
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -19,13 +19,14 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          path: run0edit
 
       - name: Create source archive
         run: |
-          version=$(grep -oP '^Version:\s*\K\S+' rpm/run0edit.spec)
-          mkdir -p "run0edit-$version"
-          find . -maxdepth 1 -type f '!' -name '.*' -execdir cp -p -t "run0edit-$version" '{}' +
-          tar -cvf "run0edit-$version.tar.gz" "run0edit-$version"
+          version=$(awk '$1 == "Version:" { print $2 }' run0edit/rpm/run0edit.spec)
+          rm -rf run0edit/.git
+          mv run0edit "run0edit-${version}"
+          tar -cvf "run0edit-${version}.tar.gz" "run0edit-${version}"
 
       - name: Upload source as artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -42,7 +43,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y nodejs python3 python3-devel rpmdevtools rpmlint
+          dnf install -y meson nodejs python3 python3-coverage python3-devel \
+            rpmdevtools rpmlint ruff ty
           rpmdev-setuptree
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
