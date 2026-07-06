@@ -6,14 +6,24 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
-## [Unreleased]
+## [v0.5.10] - 2026-07-05
 
-- Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
-  ([#93](https://github.com/HastD/run0edit/pull/93))
-- Switch to using Meson build system.
-  ([#94](https://github.com/HastD/run0edit/pull/94))
+### User-facing changes
+
 - Add man page.
   ([#96](https://github.com/HastD/run0edit/pull/96))
+- Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
+  ([#93](https://github.com/HastD/run0edit/pull/93))
+
+### Build/CI changes
+
+- Switch to using Meson build system.
+  ([#94](https://github.com/HastD/run0edit/pull/94))
+- Simplify integration test setup by running the tests directly on the Ubuntu
+  runner rather than starting up a new VM.
+  ([#87](https://github.com/HastD/run0edit/pull/87))
+- Update runners to Ubuntu 26.04.
+  ([#86](https://github.com/HastD/run0edit/pull/86))
 
 ## [v0.5.9] - 2026-05-06
 
@@ -190,7 +200,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.5.9...HEAD
+[v0.5.10]: https://github.com/HastD/run0edit/compare/v0.5.9...v0.5.10
 [v0.5.9]: https://github.com/HastD/run0edit/compare/v0.5.8...v0.5.9
 [v0.5.8]: https://github.com/HastD/run0edit/compare/v0.5.7...v0.5.8
 [v0.5.7]: https://github.com/HastD/run0edit/compare/v0.5.6...v0.5.7
