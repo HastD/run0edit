@@ -4,7 +4,7 @@
 
 Name:           run0edit
 Version:        0.5.10
-Release:        1
+Release:        2
 Summary:        run0edit allows a permitted user to edit a file as root.
 
 License:        Apache-2.0 OR MIT
@@ -14,10 +14,7 @@ Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.t
 BuildArch:      noarch
 BuildRequires:  meson
 BuildRequires:  pandoc
-BuildRequires:  python3-coverage
 BuildRequires:  python3-devel >= 3.10
-BuildRequires:  ruff
-BuildRequires:  ty
 Requires:       python3 >= 3.10
 Requires:       systemd >= 256
 Recommends:     e2fsprogs
@@ -35,7 +32,7 @@ copied back to the original location when the editor is closed.
 %autosetup
 
 %build
-%meson
+%meson -Dunit-tests=disabled
 %meson_build
 
 %install
