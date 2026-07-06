@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.5.9
+Version:        0.5.10
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -49,6 +49,11 @@ copied back to the original location when the editor is closed.
 %{_mandir}/man1/%{name}.1*
 
 %changelog
+* Sun Jul 05 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.10
+- Switch to using Meson build system.
+- Add man page.
+- Ignore comments and empty lines in editor.conf file.
+
 * Wed May 06 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.9
 - Make the global configuration file higher priority than environment variables
   for editor selection.
