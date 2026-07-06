@@ -17,10 +17,9 @@ opened in an unprivileged editor; if modified, the edited file contents are
 copied back to the original location when the editor is closed.
 
 If the editor exits with an abnormal status code or copying the data back to the
-original location fails, then the temporary file will be left in the `/tmp`
-directory. The name of the temporary file is derived from the name of the
-original file, with a randomly generated suffix to avoid conflicts with existing
-files.
+original location fails, then the temporary file will be left in a directory of
+the form `/tmp/run0edit-*` (where `*` is replaced with a randomly generated
+suffix).
 
 The choice of editor can be customized by writing the path to a text editor (for
 example, `/usr/bin/vim`) to one of the following (listed in order of priority):

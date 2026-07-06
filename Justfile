@@ -16,3 +16,6 @@ clean:
 
 test: build
     meson test -C build --verbose
+
+manpage: build
+    man -l build/docs/run0edit.1

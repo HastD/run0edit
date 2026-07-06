@@ -15,6 +15,7 @@ prefixdir = get_option('prefix')
 bindir = get_option('bindir')
 libexecdir = prefixdir / get_option('libexecdir')
 datadir = prefixdir / get_option('datadir')
+mandir = prefixdir / get_option('mandir')
 sysconfdir = get_option('sysconfdir')
 
 conf_data = configuration_data()
@@ -52,6 +53,7 @@ fs.copyfile('pyproject.toml')
 fs.copyfile('run0edit-local')
 
 subdir('data')
+subdir('docs')
 subdir('test')
 subdir('integration-test')
 
