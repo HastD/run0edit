@@ -64,9 +64,11 @@ pylint.max-args = 6
 pylint.max-statements = 30
 
 [tool.ruff.lint.per-file-ignores]
-# Ignore "too many function arguments" and "private member accessed" in tests
-"test/**.py" = ["PLR0913", "SLF001"]
-"integration-test/**.py" = ["PLR0913", "SLF001"]
+"test/**.py" = [
+    "PLR0913", # too-many-arguments
+    "PLR0917", # too-many-positional-arguments
+    "SLF001", # private-member-access
+]
 
 [dependency-groups]
 dev = [
