@@ -8,7 +8,7 @@
 
 build:
     mkdir -p build
-    meson setup build -Dprefix=/usr
+    meson setup --reconfigure build -Dprefix=/usr
     meson compile -C build
 
 clean:

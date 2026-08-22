@@ -44,4 +44,7 @@ def remove_test_dir(path: str) -> None:
     """Remove the temporary directory and all its contents."""
     if not os.path.basename(path).startswith(TEMP_FILE_PREFIX):  # pragma: no cover
         raise ValueError("invalid directory name - this doesn't look like a test directory")
-    shutil.rmtree(path)
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass

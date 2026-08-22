@@ -11,7 +11,8 @@ with passwordless run0.
 
 import os
 import secrets
-import subprocess  # nosec
+import subprocess
+import sys
 import tempfile
 import unittest
 from typing import Final
@@ -30,12 +31,12 @@ def run0edit(
     *args: str, editor: str = EDITOR, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
     """Call run0edit with the provided arguments"""
-    return subprocess.run(
-        ["./run0edit-local", f"--editor={editor}", "--debug", "--no-prompt", "--", *args],
-        check=check,
-        capture_output=True,
-        text=True,
-    )  # nosec
+    cmd_args = ["./run0edit-local", f"--editor={editor}", "--debug", "--no-prompt", "--", *args]
+    result = subprocess.run(cmd_args, check=False, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        print(f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}\n", file=sys.stderr)
+        raise subprocess.CalledProcessError(result.returncode, cmd_args)
+    return result
 
 
 def random_filename(length: int = 32) -> str:
@@ -71,12 +72,12 @@ class TestFile:
             check=True,
             capture_output=True,
             text=True,
-        )  # nosec
+        )
         self._path = result.stdout.strip()
         if mode is not None:
-            subprocess.run([RUN0, cmd("chmod"), f"{mode:o}", "--", self._path], check=True)  # nosec
+            subprocess.run([RUN0, cmd("chmod"), f"{mode:o}", "--", self._path], check=True)
         if immutable:
-            subprocess.run([RUN0, cmd("chattr"), "+i", "--", self._path], check=True)  # nosec
+            subprocess.run([RUN0, cmd("chattr"), "+i", "--", self._path], check=True)
 
     @property
     def path(self) -> str:
@@ -90,7 +91,7 @@ class TestFile:
             check=True,
             capture_output=True,
             text=True,
-        )  # nosec
+        )
         return "i" in result.stdout.strip().split(maxsplit=1)[0]
 
     def read(self) -> str:
@@ -100,15 +101,15 @@ class TestFile:
             check=True,
             capture_output=True,
             text=True,
-        )  # nosec
+        )
         return result.stdout
 
     def __del__(self):
         """Remove the file."""
         subprocess.run(
             [RUN0, cmd("chattr"), "-R", "-i", "--", self._path], check=False, capture_output=True
-        )  # nosec
-        subprocess.run([RUN0, cmd("rm"), "-rf", "--", self._path], check=False, capture_output=True)  # nosec
+        )
+        subprocess.run([RUN0, cmd("rm"), "-rf", "--", self._path], check=False, capture_output=True)
 
 
 class TestIntegration(unittest.TestCase):
@@ -198,9 +199,17 @@ class TestIntegration(unittest.TestCase):
     def test_read_only_filesystem(self):
         """Should give expected error if file is on read-only filesystem"""
         ro_mount_dir = tempfile.mkdtemp()
-        mount_ro = 'mount --bind -o ro "$1" "$2"'
         subprocess.run(
-            [RUN0, cmd("sh"), "-c", mount_ro, cmd("sh"), tempfile.gettempdir(), ro_mount_dir],
+            [
+                RUN0,
+                "--via-shell",
+                "mount",
+                "--bind",
+                "-o",
+                "ro",
+                tempfile.gettempdir(),
+                ro_mount_dir,
+            ],
             check=True,
         )
         file = TestFile(directory=ro_mount_dir, create=False)

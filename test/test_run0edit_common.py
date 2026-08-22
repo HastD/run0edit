@@ -65,4 +65,6 @@ class TestFindCommand(unittest.TestCase):
         for mod in (run0edit_inner, run0edit_main):
             with mock.patch("shutil.which") as mock_which:
                 mod.find_command(cmd)
-                self.assertEqual(mock_which.call_args_list, [((cmd,), {"path": "/usr/bin:/bin"})])
+                self.assertEqual(
+                    mock_which.call_args_list, [((cmd,), {"path": "/usr/bin:/bin:/usr/sbin:/sbin"})]
+                )

@@ -54,6 +54,7 @@ select = [
 
 ignore = [
     "S603", # subprocess-without-shell-equals-true
+    "S606", # start-process-with-no-shell
     "SIM105", # suppressible-exception
     "N806", # non-lowercase-variable-in-function
 ]

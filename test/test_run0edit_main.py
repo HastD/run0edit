@@ -11,6 +11,7 @@ import io
 import os
 import pathlib
 import re
+import shutil
 import unittest
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -44,13 +45,13 @@ class TestGlobalConstants(unittest.TestCase):
 
     def test_system_call_deny(self):
         """SYSTEM_CALL_DENY should have expected number and format of items"""
-        self.assertEqual(len(run0edit.SYSTEM_CALL_DENY), 9)
+        self.assertEqual(len(run0edit.SYSTEM_CALL_DENY), 10)
         for item in run0edit.SYSTEM_CALL_DENY:
             self.assertRegex(item, r"^@?[a-zA-Z0-9_-]+$")
 
     def test_systemd_sandbox_properties(self):
         """SYSTEMD_SANDBOX_PROPERTIES should have expected number and format of items"""
-        self.assertEqual(len(run0edit.SYSTEMD_SANDBOX_PROPERTIES), 25)
+        self.assertEqual(len(run0edit.SYSTEMD_SANDBOX_PROPERTIES), 24)
         for prop in run0edit.SYSTEMD_SANDBOX_PROPERTIES:
             self.assertIsInstance(prop, str)
             self.assertIn("=", prop)
@@ -452,7 +453,7 @@ class TestTempFile(unittest.TestCase):
         """Clean up temp files"""
         for temp_file in (self.empty_file, self.non_empty_file):
             try:
-                temp_file.remove()
+                shutil.rmtree(temp_file.directory)
             except OSError:
                 pass
 
@@ -496,65 +497,16 @@ class TestTempFile(unittest.TestCase):
         self.non_empty_file.remove(only_if_empty=True)
         self.assertTrue(os.path.exists(self.non_empty_file.path))
 
-
-class TestEscapePath(unittest.TestCase):
-    """Tests for escape_path"""
-
-    def test_escape_path(self):
-        """Should escape backslashes and double-quotes"""
-        test_cases_changed = {
-            "\\": "\\\\",
-            '"': '\\"',
-            r'\\\/""\"': r"\\\\\\/\"\"\\\"",
-        }
-        test_cases_unchanged = ["~`!@#$%^&*/()-_'“”=+[]{}|;:,.<>/?", "蟒蛇", "Ŝ≜"]
-        for path, output in test_cases_changed.items():
-            self.assertEqual(run0edit.escape_path(path), output)
-        for case in test_cases_unchanged:
-            self.assertEqual(run0edit.escape_path(case), case)
-
-
-class TestSandboxPath(unittest.TestCase):
-    """Tests for sandbox_path"""
-
-    def setUp(self):
-        """Set up temporary directory"""
-        self.tempdir = new_test_dir()
-
-    def tearDown(self):
-        """Remove temporary directory"""
-        remove_test_dir(self.tempdir)
-
-    def test_path_exists(self):
-        """Should not modify path to existing file without symlinks"""
-        path = f"{self.tempdir}/foo.txt"
-        pathlib.Path(path).touch()
-        self.assertEqual(run0edit.sandbox_path(path), path)
-
-    def test_path_does_not_exist(self):
-        """Should give directory containing path that doesn't exist"""
-        path = f"{self.tempdir}/foo.txt"
-        self.assertEqual(run0edit.sandbox_path(path), self.tempdir)
-
-    def test_symlink_file(self):
-        """Should not follow symlink to file"""
-        file_path = f"{self.tempdir}/foo"
-        symlink_path = f"{self.tempdir}/bar"
-        pathlib.Path(file_path).touch()
-        os.symlink(file_path, symlink_path)
-        self.assertEqual(run0edit.sandbox_path(symlink_path), symlink_path)
-
-    def test_symlink_dir(self):
-        """Should not try to resolve directory symlinks"""
-        dir_path = f"{self.tempdir}/foo"
-        symlink = f"{self.tempdir}/bar"
-        os.mkdir(dir_path)
-        os.symlink(dir_path, symlink)
-        file_path = f"{dir_path}/file.txt"
-        symlinked_file_path = f"{symlink}/file.txt"
-        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlink)
-        pathlib.Path(file_path).touch()
-        self.assertEqual(run0edit.sandbox_path(symlinked_file_path), symlinked_file_path)
+    @mock.patch("os.rmdir")
+    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    def test_remove_fail(self, mock_stderr, mock_rmdir):
+        """Should report error message if removing temp dir fails"""
+        mock_rmdir.side_effect = OSError("mock rmdir error")
+        self.empty_file.remove()
+        self.assertIn(
+            "run0edit: Warning: failed to remove temporary directory ", mock_stderr.getvalue()
+        )
+        self.assertFalse(os.path.exists(self.empty_file.path))
 
 
 @mock.patch("run0edit_main.find_command")
@@ -620,14 +572,13 @@ class TestBuildRun0Arguments(unittest.TestCase):
         editor = "/usr/bin/vim"
         args = run0edit.build_run0_arguments(path, temp_path, editor)
         props = run0edit.SYSTEMD_SANDBOX_PROPERTIES
-        self.assertEqual(len(args.systemd_properties), len(props) + 1)
+        self.assertEqual(args.systemd_properties, props)
         self.assertTrue(args.description.startswith("run0edit "))
         self.assertEqual(args._run0_cmd, "/usr/bin/run0")
-        self.assertEqual(args.systemd_properties[-1], f'ReadWritePaths="{path}" "{temp_path}"')
         self.assertEqual(args.extra_options, [])
         self.assertEqual(args.command, "/usr/bin/python3")
         self.assertEqual(args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor])
-        self.assertEqual(len(args.argument_list()), len(props) + 9)
+        self.assertEqual(len(args.argument_list()), len(props) + 8)
         remove_test_file(path)
 
     def test_args_bgcolor(self, mock_find_cmd):
@@ -638,26 +589,14 @@ class TestBuildRun0Arguments(unittest.TestCase):
         editor = "/usr/bin/vim"
         args = run0edit.build_run0_arguments(path, temp_path, editor, bgcolor="bgcolor")
         props = run0edit.SYSTEMD_SANDBOX_PROPERTIES
-        self.assertEqual(len(args.systemd_properties), len(props) + 1)
+        self.assertEqual(args.systemd_properties, props)
         self.assertTrue(args.description.startswith("run0edit "))
         self.assertEqual(args._run0_cmd, "/usr/bin/run0")
-        self.assertEqual(args.systemd_properties[-1], f'ReadWritePaths="{path}" "{temp_path}"')
         self.assertEqual(args.extra_options, ["--background=bgcolor"])
         self.assertEqual(args.command, "/usr/bin/python3")
-        self.assertEqual(
-            args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor, "bgcolor"]
-        )
-        self.assertEqual(len(args.argument_list()), len(props) + 11)
+        self.assertEqual(args.command_args, [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor])
+        self.assertEqual(len(args.argument_list()), len(props) + 9)
         remove_test_file(path)
-
-    def test_read_write_paths(self, mock_find_cmd):
-        """Should escape correct paths in ReadWritePaths"""
-        mock_find_cmd.side_effect = lambda cmd: cmd
-        path = '/blahblah/"foo\\bar/spam.txt'
-        temp_path = '"temp"/file'
-        args = run0edit.build_run0_arguments(path, temp_path, "...")
-        rw_paths = r'ReadWritePaths="/blahblah/\"foo\\bar" "\"temp\"/file"'
-        self.assertIn(rw_paths, args.systemd_properties)
 
     def test_debug_arg(self, mock_find_cmd):
         """Should set environment variable with debug option"""
@@ -756,7 +695,7 @@ class TestValidatePath(unittest.TestCase):
         run0edit.validate_path(self.path)
 
 
-@mock.patch("subprocess.run")
+@mock.patch("os.execv")
 @mock.patch("run0edit_main.find_command", lambda cmd: f"/usr/bin/{cmd}")
 class TestRun(unittest.TestCase):
     """Tests for run"""
@@ -770,117 +709,68 @@ class TestRun(unittest.TestCase):
         remove_test_file(self.path)
 
     @mock.patch("run0edit_main.validate_path")
-    def test_validates_path_succeeded(self, mock_validate, mock_subproc):
+    def test_validates_path_succeeded(self, mock_validate, mock_execv):
         """Should validate path and continue if valid"""
         mock_validate.return_value = None
         run0edit.run(self.path, "...")
         self.assertEqual(mock_validate.call_args.args, (self.path,))
-        self.assertTrue(mock_subproc.called)
+        self.assertTrue(mock_execv.called)
 
     @mock.patch("run0edit_main.print_err")
     @mock.patch("run0edit_main.validate_path")
-    def test_path_validation_failed(self, mock_validate, mock_print_err, mock_subproc):
+    def test_path_validation_failed(self, mock_validate, mock_print_err, mock_execv):
         """Should validate path and exit with an error message if not valid"""
         mock_validate.side_effect = run0edit.InvalidPathError("some error message")
         self.assertEqual(run0edit.run(self.path, "..."), 1)
         self.assertEqual(mock_validate.call_args.args, (self.path,))
         self.assertEqual(mock_print_err.call_args.args, ("some error message",))
-        self.assertFalse(mock_subproc.called)
+        self.assertFalse(mock_execv.called)
 
-    def test_creates_temp_file(self, mock_subproc):
-        """Should create empty temp file that's passed to subprocess.run"""
-        mock_subproc.side_effect = Exception("mock subproc")
-        editor = "/bin/ed"
-        with self.assertRaisesRegex(Exception, "mock subproc"):
-            run0edit.run(self.path, editor)
-        (args,) = mock_subproc.call_args.args
-        temp_filename = args[-2]
-        self.assertNotEqual(self.path, temp_filename)
-        self.assertTrue(os.path.isfile(temp_filename))
-        self.assertEqual(os.path.getsize(temp_filename), 0)
-        os.remove(temp_filename)
-        os.rmdir(os.path.dirname(temp_filename))
-
-    @mock.patch("os.geteuid")
-    def test_check_args(self, mock_geteuid, mock_subproc):
-        """Should pass expected arguments to subprocess.run"""
-        mock_geteuid.return_value = 1
+    def test_check_args(self, mock_execv):
+        """Should pass expected arguments to os.execv"""
         editor = "/usr/sbin/butterfly"
         run0edit.run(self.path, editor)
-        (args,) = mock_subproc.call_args.args
+        (
+            run0_cmd,
+            args,
+        ) = mock_execv.call_args.args
+        self.assertEqual(run0_cmd, "/usr/bin/run0")
         temp_filename = args[-2]
         expected_args = run0edit.build_run0_arguments(self.path, temp_filename, editor)
         self.assertEqual(args, expected_args.argument_list())
-        kwargs = mock_subproc.call_args.kwargs
-        self.assertEqual(kwargs, {"env": mock.ANY, "check": False})
-        false_bool_strings = ("0", "no", "n", "false", "f", "off")
-        self.assertNotIn(kwargs["env"].get("SYSTEMD_ADJUST_TERMINAL_TITLE"), false_bool_strings)
-
-    @mock.patch("os.geteuid")
-    def test_adjust_terminal_title(self, mock_geteuid, mock_subproc):
-        """Should not adjust terminal title if run as root"""
-        mock_geteuid.return_value = 0
-        editor = "/usr/sbin/butterfly"
-        run0edit.run(self.path, editor)
-        env = mock_subproc.call_args.kwargs["env"]
-        self.assertEqual(env.get("SYSTEMD_ADJUST_TERMINAL_TITLE"), "false")
 
     @staticmethod
-    def mock_editor_process(args: Sequence[str], **_: Any) -> int:
-        """Mock subprocess.run that writes text to temp file"""
+    def mock_editor_process(_path: str, args: Sequence[str], **_: Any) -> int:
+        """Mock os.execv that writes text to temp file"""
         text = os.environ.get("MOCK_TEXT")
         if text is not None:
             with open(args[-2], "w", encoding="utf8") as f:
                 f.write(os.environ["MOCK_TEXT"])
-        ret = mock.Mock()
-        ret.returncode = int(os.environ["MOCK_RETCODE"])
-        return ret
+        return int(os.environ["MOCK_RETCODE"])
 
     @mock.patch("sys.stderr", new_callable=io.StringIO)
-    def test_run_success(self, mock_stderr, mock_subproc):
-        """Should clean up temp file and return 0 if subprocess succeeds"""
-        mock_subproc.side_effect = self.mock_editor_process
+    def test_run_success(self, mock_stderr, mock_execv):
+        """Should clean up temp file and return 0 if execv succeeds"""
+        mock_execv.side_effect = self.mock_editor_process
         with mock.patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "0"}):
             self.assertEqual(run0edit.run(self.path, "..."), 0)
-        (args,) = mock_subproc.call_args.args
+        (
+            run0_cmd,
+            args,
+        ) = mock_execv.call_args.args
+        self.assertEqual(run0_cmd, "/usr/bin/run0")
         temp_filename = args[-2]
         self.assertFalse(os.path.exists(temp_filename))
         self.assertEqual(mock_stderr.getvalue(), "")
 
     @mock.patch("sys.stderr", new_callable=io.StringIO)
-    def test_run_fail_nonempty(self, mock_stderr, mock_subproc):
-        """Should return nonzero and not clean non-empty tempfile if subprocess fails"""
-        mock_subproc.side_effect = self.mock_editor_process
-        with mock.patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "42"}):
-            self.assertEqual(run0edit.run(self.path, "..."), 42)
-        (args,) = mock_subproc.call_args.args
-        temp_filename = args[-2]
-        self.assertTrue(os.path.exists(temp_filename))
-        os.remove(temp_filename)
-        os.rmdir(os.path.dirname(temp_filename))
-        self.assertEqual(mock_stderr.getvalue(), "")
-
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
-    def test_run_fail_empty(self, mock_stderr, mock_subproc):
-        """Should return nonzero and clean empty tempfile if subprocess fails"""
-        mock_subproc.side_effect = self.mock_editor_process
-        with mock.patch.dict("os.environ", {"MOCK_RETCODE": "5"}):
-            self.assertEqual(run0edit.run(self.path, "..."), 5)
-        (args,) = mock_subproc.call_args.args
-        temp_filename = args[-2]
+    def test_execv_fail(self, mock_stderr, mock_execv):
+        """Should return 1 and clean empty tempfile if execv fails"""
+        mock_execv.side_effect = OSError("mock execv error")
+        self.assertEqual(run0edit.run(self.path, "..."), 1)
+        temp_filename = mock_execv.call_args.args[0][-2]
         self.assertFalse(os.path.exists(temp_filename))
-        self.assertEqual(mock_stderr.getvalue(), "")
-
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
-    def test_run_namespace_creation_fail(self, mock_stderr, mock_subproc):
-        """Should return 1 and clean tempfile if subprocess fails with exit status 226"""
-        mock_subproc.side_effect = self.mock_editor_process
-        with mock.patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "226"}):
-            self.assertEqual(run0edit.run(self.path, "..."), 1)
-        (args,) = mock_subproc.call_args.args
-        temp_filename = args[-2]
-        self.assertFalse(os.path.exists(temp_filename))
-        self.assertIn("No such directory", mock_stderr.getvalue())
+        self.assertEqual(mock_stderr.getvalue(), "run0edit: Warning: execution of run0 failed\n")
 
 
 class TestAnsiColor(unittest.TestCase):
@@ -1133,7 +1023,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(mock_stdout.getvalue(), "")
         self.assertRegex(
             mock_stderr.getvalue().replace("\n", " "),
-            "^run0edit: ERROR: Inner script was not found .* or did not have expected SHA-256 hash",
+            "^run0edit: ERROR: Inner script was not found .* or did not have expected BLAKE2 hash",
         )
 
     @mock.patch("sys.argv", ["run0edit", "nano", "asdf"])

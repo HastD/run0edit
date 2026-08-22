@@ -78,7 +78,7 @@ def readonly_filesystem(path: str) -> bool | None:
 
 def find_command(command: str) -> str:
     """Search for command using a default path."""
-    cmd_path = shutil.which(command, path="/usr/bin:/bin")
+    cmd_path = shutil.which(command, path="/usr/bin:/bin:/usr/sbin:/sbin")
     if cmd_path is None:
         raise CommandNotFoundError(command)
     return cmd_path
@@ -290,17 +290,14 @@ def handle_copy_to_original(
         raise
 
 
-def run_editor(*, uid: int, editor: str, path: str, bgcolor: str | None = None) -> None:
+def run_editor(*, user: str, editor: str, path: str) -> None:
     """Run the editor as the given UID to edit the file at the given path."""
-    sh = find_command("sh")
-    run0_args = ["run0", f"--user={uid}"]
-    if bgcolor is not None:
-        run0_args.append(f"--background={bgcolor}")
-    run0_args += ["--", sh, "-c", '"$1" "$2"', sh, editor, path]
     try:
-        run_command(*run0_args)
+        # We use a login shell here to ensure the unprivileged editor has the environment
+        # associated with a fresh shell session for that user.
+        run_command("runuser", "--pty", "-", user, "-c", 'exec "$0" "$1"', editor, path)
     except CommandNotFoundError as e:
-        print("run0edit: failed to call run0 to start editor")
+        print("run0edit: failed to call runuser to start editor")
         raise EditTempFileError from e
     except SubprocessError as e:
         print(f"run0edit: failed to edit temporary file at {path}")
@@ -311,10 +308,9 @@ def run(
     original_file: str,
     temp_file: str,
     editor: str,
-    uid: int,
+    user: str,
     *,
     prompt_immutable: bool = True,
-    bgcolor: str | None = None,
 ) -> None:
     """
     Copy file to temp file, run editor, and copy temp file back to target file.
@@ -339,7 +335,7 @@ def run(
             raise
 
     # Attempt to edit the temp file as the original user.
-    run_editor(uid=uid, editor=editor, path=temp_file, bgcolor=bgcolor)
+    run_editor(user=user, editor=editor, path=temp_file)
 
     handle_copy_to_original(
         original_file, temp_file, original_file_exists=original_file_exists, immutable=immutable
@@ -350,46 +346,50 @@ class InvalidArgumentsError(Exception):
     """Arguments to script are invalid."""
 
 
-def parse_args(args: Sequence[str]) -> tuple[str, str, str, str | None]:
+def parse_args(args: Sequence[str]) -> tuple[str, str, str]:
     """Parse command-line arguments, raising error if too few or too many."""
-    EXPECTED_MIN_ARGS = 3
-    EXPECTED_MAX_ARGS = 4
-    if len(args) < EXPECTED_MIN_ARGS:
+    EXPECTED_ARGS = 3
+    if len(args) < EXPECTED_ARGS:
         print("run0edit_inner.py: Error: too few arguments")
         raise InvalidArgumentsError
-    if len(args) > EXPECTED_MAX_ARGS:
+    if len(args) > EXPECTED_ARGS:
         print("run0edit_inner.py: Error: too many arguments")
         raise InvalidArgumentsError
+    return args[0], args[1], args[2]
+
+
+def remove_temp_file(path: str, *, only_if_empty: bool = False) -> None:
+    """Delete the temporary file"""
+    if only_if_empty and os.path.getsize(path) > 0:
+        return
+    os.remove(path)
+    directory = os.path.dirname(path)
     try:
-        bgcolor = args[3]
-    except IndexError:
-        bgcolor = None
-    return args[0], args[1], args[2], bgcolor
+        os.rmdir(directory)
+    except OSError:
+        print(
+            f"run0edit: Warning: failed to remove temporary directory {directory}", file=sys.stderr
+        )
 
 
-def main(args: Sequence[str], *, uid: int | None = None) -> int:
+def main(args: Sequence[str], *, user: str | None = None) -> int:
     """Main function."""
     try:
-        original_file, temp_file, editor, bgcolor = parse_args(args)
+        original_file, temp_file, editor = parse_args(args)
     except InvalidArgumentsError:
         return 2
-    if uid is None:
-        uid = int(os.environ["SUDO_UID"])
+    if user is None:
+        user = os.environ["SUDO_USER"]
     debug = os.environ.get("RUN0EDIT_DEBUG") == "1"
     prompt_immutable = os.environ.get("RUN0EDIT_NO_PROMPT") != "1"
     try:
-        run(
-            original_file,
-            temp_file,
-            editor,
-            uid,
-            prompt_immutable=prompt_immutable,
-            bgcolor=bgcolor,
-        )
+        run(original_file, temp_file, editor, user, prompt_immutable=prompt_immutable)
     except Run0editError:
+        remove_temp_file(temp_file, only_if_empty=True)
         if debug:
             raise
         return 1
+    remove_temp_file(temp_file)
     return 0
 
 
