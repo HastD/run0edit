@@ -17,7 +17,6 @@ import hashlib
 import os
 import shutil
 import stat
-import subprocess  # nosec
 import sys
 import tempfile
 import textwrap
@@ -28,27 +27,37 @@ from typing import Final
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
 INNER_SCRIPT_B2: Final[str] = "\
-9f596fb81d6b422fc2a53d9bde907f90daca814f9fd6107169dea8ed0e01e5740fbe22eb75dfc463a7762a64fd189fd3eb0799edfece8470ea566d50d68eade6"
+7d215d913fbc27ace618e1354a6dadcc8277a3eb77dfa38a243d6a5e76e0e350afd5143a0b6bb34059b089cef19a957340cb2c1af4040c0ea489af31875bfb05"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
+
+CAPABILITY_BOUNDING_SET: Final[list[str]] = [
+    "CAP_CHOWN",
+    "CAP_DAC_OVERRIDE",
+    "CAP_FOWNER",
+    "CAP_LINUX_IMMUTABLE",
+    "CAP_SETGID",
+    "CAP_SETUID",
+]
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
     "@aio",
-    "@chown",
+    "@clock",
     "@keyring",
     "@memlock",
+    "@module",
     "@mount",
-    "@privileged",
-    "@resources",
-    "@setuid",
+    "@raw-io",
+    "@reboot",
+    "@swap",
     "memfd_create",
 ]
 
 SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
-    "CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER CAP_LINUX_IMMUTABLE",
+    f"CapabilityBoundingSet={' '.join(CAPABILITY_BOUNDING_SET)}",
     "DevicePolicy=closed",
+    "InaccessiblePaths=/run/dbus /run/user",
     "LockPersonality=yes",
     "MemoryDenyWriteExecute=yes",
-    "NoNewPrivileges=yes",
     "PrivateDevices=yes",
     "PrivateIPC=yes",
     "PrivateNetwork=yes",
@@ -60,7 +69,6 @@ SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
     "ProtectKernelModules=yes",
     "ProtectKernelTunables=yes",
     "ProtectProc=noaccess",
-    "ReadOnlyPaths=/",
     "RestrictAddressFamilies=AF_UNIX",
     "RestrictNamespaces=yes",
     "RestrictRealtime=yes",
@@ -96,7 +104,7 @@ class CommandNotFoundError(Exception):
 
 def find_command(command: str) -> str:
     """Search for command using a default path."""
-    cmd_path = shutil.which(command, path="/usr/bin:/bin")
+    cmd_path = shutil.which(command, path="/usr/bin:/bin:/usr/sbin:/sbin")
     if cmd_path is None:
         raise CommandNotFoundError(command)
     return cmd_path
@@ -279,19 +287,13 @@ class TempFile:
 
     def remove(self, *, only_if_empty: bool = False) -> None:
         """Delete the temporary file"""
-        if not only_if_empty or os.path.getsize(self.path) == 0:
-            os.remove(self.path)
+        if only_if_empty and os.path.getsize(self.path) > 0:
+            return
+        os.remove(self.path)
+        try:
             os.rmdir(self.directory)
-
-
-def escape_path(path: str) -> str:
-    """Escape a path for use in a systemd property string."""
-    return path.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def sandbox_path(path: str) -> str:
-    """Get the path to be passed to ReadWritePaths"""
-    return path if os.path.exists(path) else os.path.dirname(path)
+        except OSError:
+            print_err(f"Warning: failed to remove temporary directory {self.directory}")
 
 
 @dataclasses.dataclass
@@ -328,14 +330,10 @@ def build_run0_arguments(
 ) -> Run0Arguments:
     """Construct the arguments to be passed to run0."""
     python_cmd = find_command("python3")
-    rw_path = sandbox_path(path)
-    rw_path_prop = f'ReadWritePaths="{escape_path(rw_path)}" "{escape_path(temp_path)}"'
-    systemd_properties = [*SYSTEMD_SANDBOX_PROPERTIES, rw_path_prop]
     extra_options = []
     python_args = [INNER_SCRIPT_PATH, path, temp_path, editor]
     if bgcolor is not None:
         extra_options.append(f"--background={bgcolor}")
-        python_args.append(bgcolor)
     setenv = {}
     if debug:
         setenv["RUN0EDIT_DEBUG"] = "1"
@@ -343,7 +341,7 @@ def build_run0_arguments(
         setenv["RUN0EDIT_NO_PROMPT"] = "1"
     return Run0Arguments(
         description=f'run0edit "{path}"',
-        systemd_properties=systemd_properties,
+        systemd_properties=SYSTEMD_SANDBOX_PROPERTIES,
         command=python_cmd,
         command_args=python_args,
         extra_options=extra_options,
@@ -403,28 +401,14 @@ def run(
     run0_args = build_run0_arguments(
         path, temp_file.path, editor, bgcolor=bgcolor, debug=debug, no_prompt=no_prompt
     )
-    env = os.environ.copy()
-    if os.geteuid() == 0:
-        env["SYSTEMD_ADJUST_TERMINAL_TITLE"] = "false"
-    process = subprocess.run(run0_args.argument_list(), env=env, check=False)  # nosec
-    match process.returncode:
-        case 0:
-            temp_file.remove()
-            return 0
-        case 226:
-            # If directory does not exist, namespace creation will fail, causing
-            # run0 to fail with exit status 226:
-            # https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
-            # This can also occur if the path is privileged (such as /etc/shadow)
-            # and SELinux is enabled and blocks systemd from mounting the namespace.
-            print_err(
-                f"No such directory {os.path.dirname(path)}, or path is in a privileged location."
-            )
-            temp_file.remove()
-            return 1
-        case _:
-            temp_file.remove(only_if_empty=True)
-            return process.returncode
+    argv = run0_args.argument_list()
+    try:
+        return os.execv(argv[0], argv)
+    except OSError:
+        print_err("Warning: execution of run0 failed")
+        return 1
+    finally:
+        temp_file.remove()
 
 
 def ansi_color(color: str) -> str:
@@ -488,7 +472,7 @@ def main() -> int:
     if not validate_inner_script():
         print_err(f"""
             ERROR: Inner script was not found at {INNER_SCRIPT_PATH} or did not
-            have expected SHA-256 hash!
+            have expected BLAKE2 hash!
         """)
         return 1
     try:

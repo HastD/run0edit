@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.5.10
-Release:        2
+Version:        0.6.0
+Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
 License:        Apache-2.0 OR MIT
@@ -17,6 +17,7 @@ BuildRequires:  pandoc
 BuildRequires:  python3-devel >= 3.10
 Requires:       python3 >= 3.10
 Requires:       systemd >= 256
+Requires:       util-linux
 Recommends:     e2fsprogs
 
 %description
@@ -46,6 +47,12 @@ copied back to the original location when the editor is closed.
 %{_mandir}/man1/%{name}.1*
 
 %changelog
+* Sat Aug 22 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.6.0
+- Use execv to replace main process with privileged process. This makes run0edit
+  work properly with Polkit's authentication caching.
+- Use `runuser` to run editor as user in privileged script, avoiding the need
+  for nested DBus calls.
+
 * Sun Jul 05 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.5.10
 - Switch to using Meson build system.
 - Add man page.

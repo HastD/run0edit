@@ -6,6 +6,30 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [v0.6.0] - 2026-08-22
+
+This version contains two significant changes to run0edit's execution model.
+([#106](https://github.com/HastD/run0edit/pull/106))
+
+First, the privileged inner script is now executed by replacing the main
+process, rather than spawning it as a subprocess. This means the parent process
+of the process that triggers the Polkit authorization check will be the user's
+shell, allowing run0edit to work properly with Polkit's authentication caching
+mechanism (`AUTH_KEEP`).
+
+Second, the editor is now executed from within the privileged script using
+`runuser` instead of a second call to `run0`. This has several implications:
+
+- The privileged script now sets the UID and GID for the editor process itself,
+  rather than delegating to systemd via DBus. In particular, the privileged
+  script no longer needs DBus access at all, so we can block that sandbox escape
+  route entirely.
+- The systemd sandboxing options now apply to the editor session as well, not
+  just to the portion of the script that runs as root. This requires various
+  changes to the systemd sandboxing options.
+- A small visual difference: The editor's default background color will now
+  match the dark red background used by `run0` as the default for root.
+
 ## [v0.5.10] - 2026-07-05
 
 ### User-facing changes
@@ -200,6 +224,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.6.0]: https://github.com/HastD/run0edit/compare/v0.5.10...v0.6.0
 [v0.5.10]: https://github.com/HastD/run0edit/compare/v0.5.9...v0.5.10
 [v0.5.9]: https://github.com/HastD/run0edit/compare/v0.5.8...v0.5.9
 [v0.5.8]: https://github.com/HastD/run0edit/compare/v0.5.7...v0.5.8

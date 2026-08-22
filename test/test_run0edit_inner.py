@@ -9,6 +9,7 @@
 import io
 import os
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import run0edit_inner as inner
@@ -538,51 +539,27 @@ class TestRunEditor(unittest.TestCase):
     @mock.patch("run0edit_inner.find_command")
     def test_check_args(self, mock_find_cmd, mock_run_cmd, mock_stdout):
         """Should pass correct arguments to run_command"""
+        user = mock.sentinel.user
         editor = mock.sentinel.editor
         path = mock.sentinel.path
         mock_find_cmd.side_effect = lambda cmd: f"/bin/{cmd}"
-        inner.run_editor(uid=42, editor=editor, path=path)
+        inner.run_editor(user=user, editor=editor, path=path)
         self.assertEqual(
             mock_run_cmd.call_args.args,
-            ("run0", "--user=42", "--", "/bin/sh", "-c", '"$1" "$2"', "/bin/sh", editor, path),
-        )
-        self.assertEqual(mock_stdout.getvalue(), "")
-
-    @mock.patch("run0edit_inner.find_command")
-    def test_check_args_with_bgcolor(self, mock_find_cmd, mock_run_cmd, mock_stdout):
-        """Should pass correct arguments to run_command"""
-        editor = mock.sentinel.editor
-        path = mock.sentinel.path
-        bgcolor = "bgcolor"
-        mock_find_cmd.side_effect = lambda cmd: f"/bin/{cmd}"
-        inner.run_editor(uid=42, editor=editor, path=path, bgcolor=bgcolor)
-        self.assertEqual(
-            mock_run_cmd.call_args.args,
-            (
-                "run0",
-                "--user=42",
-                "--background=bgcolor",
-                "--",
-                "/bin/sh",
-                "-c",
-                '"$1" "$2"',
-                "/bin/sh",
-                editor,
-                path,
-            ),
+            ("runuser", "--pty", "-", user, "-c", 'exec "$0" "$1"', editor, path),
         )
         self.assertEqual(mock_stdout.getvalue(), "")
 
     def test_error_messages(self, mock_run_cmd, mock_stdout):
         """Should print appropriate error messages and raise EditTempFileError"""
         errors = {
-            inner.CommandNotFoundError: "failed to call run0 to start editor",
+            inner.CommandNotFoundError: "failed to call runuser to start editor",
             inner.SubprocessError: "failed to edit temporary file",
         }
         mock_run_cmd.side_effect = iter(errors)
         for message in errors.values():
             with self.assertRaises(inner.EditTempFileError):
-                inner.run_editor(uid=42, editor="butterfly", path="some/path")
+                inner.run_editor(user="username", editor="butterfly", path="some/path")
             self.assertIn(message, mock_stdout.getvalue())
             mock_stdout.truncate(0)
             mock_stdout.seek(0)
@@ -611,7 +588,7 @@ class TestRun(TestCaseWithFiles):
         m_realpath.return_value = s.realpath
         m_exists.return_value = True
         m_check_ro.return_value = s.immutable
-        inner.run(s.filename, s.temp_filename, s.editor, s.uid, bgcolor=s.bgcolor)
+        inner.run(s.filename, s.temp_filename, s.editor, s.user)
         self.assertEqual(m_realpath.call_args.args, (s.filename,))
         self.assertEqual(m_exists.call_args.args, (s.realpath,))
         self.assertEqual(
@@ -621,7 +598,7 @@ class TestRun(TestCaseWithFiles):
         self.assertEqual(m_copy_file.call_args, ((s.realpath, s.temp_filename), {"create": False}))
         self.assertEqual(
             m_run_editor.call_args,
-            ((), {"uid": s.uid, "editor": s.editor, "path": s.temp_filename, "bgcolor": s.bgcolor}),
+            ((), {"user": s.user, "editor": s.editor, "path": s.temp_filename}),
         )
         self.assertEqual(
             m_copy_orig.call_args,
@@ -637,7 +614,7 @@ class TestRun(TestCaseWithFiles):
         """Should print message and raise FileCopyError if copy to temp fails"""
         mock_copy_file.side_effect = inner.FileCopyError
         with self.assertRaises(inner.FileCopyError):
-            inner.run(self.filename, self.temp_filename, "editor", 42)
+            inner.run(self.filename, self.temp_filename, "editor", "username")
         self.assertFalse(mock_run_editor.called)
         self.assertRegex(mock_stdout.getvalue(), " failed to copy .* to temporary file ")
 
@@ -645,7 +622,7 @@ class TestRun(TestCaseWithFiles):
         """Should copy edited tempfile contents to target file"""
         text = b"Lorum ipsum dolor sit amet"
         mock_run_editor.side_effect = lambda **_: self.edit_temp_file(text)
-        inner.run(self.filename, self.temp_filename, "editor", 42)
+        inner.run(self.filename, self.temp_filename, "editor", "username")
         with open(self.filename, "rb") as f:
             self.assertEqual(f.read(), text)
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -653,7 +630,7 @@ class TestRun(TestCaseWithFiles):
     @mock.patch("run0edit_inner.copy_to_original")
     def test_edit_unchanged(self, mock_copy_to_orig, mock_run_editor, mock_stdout):
         """Should not copy unmodified tempfile contents to target file"""
-        inner.run(self.filename, self.temp_filename, "editor", 42)
+        inner.run(self.filename, self.temp_filename, "editor", "username")
         with open(self.filename, "rb") as f:
             self.assertEqual(f.read(), self.file_contents)
         self.assertTrue(mock_run_editor.called)
@@ -665,7 +642,7 @@ class TestRun(TestCaseWithFiles):
         """Should not try copying nonexistent file to temp file"""
         mock_run_editor.side_effect = Exception("mock run editor")
         with self.assertRaisesRegex(Exception, "mock run editor"):
-            inner.run(self.new_filename, self.temp_filename, "editor", 42)
+            inner.run(self.new_filename, self.temp_filename, "editor", "username")
         self.assertFalse(mock_copy_file.called)
         self.assertEqual(mock_stdout.getvalue(), "")
 
@@ -673,7 +650,7 @@ class TestRun(TestCaseWithFiles):
         """Should copy edited tempfile contents to new file"""
         text = b"Lorum ipsum dolor sit amet"
         mock_run_editor.side_effect = lambda **_: self.edit_temp_file(text)
-        inner.run(self.new_filename, self.temp_filename, "editor", 42)
+        inner.run(self.new_filename, self.temp_filename, "editor", "username")
         with open(self.new_filename, "rb") as f:
             self.assertEqual(f.read(), text)
         self.assertEqual(mock_stdout.getvalue(), "")
@@ -683,7 +660,7 @@ class TestRun(TestCaseWithFiles):
         """Should not create empty new file"""
         with open(self.temp_filename, "wb"):
             pass
-        inner.run(self.new_filename, self.temp_filename, "editor", 42)
+        inner.run(self.new_filename, self.temp_filename, "editor", "username")
         self.assertFalse(os.path.exists(self.new_filename))
         self.assertTrue(mock_run_editor.called)
         self.assertFalse(mock_copy_to_orig.called)
@@ -699,7 +676,7 @@ class TestRun(TestCaseWithFiles):
             mock_ask_imm.return_value = False
             mock_is_imm.return_value = True
             mock_ro_fs.return_value = False
-            inner.run("/proc/version", self.temp_filename, "editor", 42)
+            inner.run("/proc/version", self.temp_filename, "editor", "username")
         self.assertFalse(mock_run_editor.called)
         self.assertIn("declined to remove immutable attribute", mock_stdout.getvalue())
 
@@ -708,15 +685,10 @@ class TestRun(TestCaseWithFiles):
 class TestParseArgs(unittest.TestCase):
     """Tests for parse_args"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3)
+    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
 
-    def test_three_args(self, mock_stdout):
+    def test_parse_args(self, mock_stdout):
         """Should return three provided arguments plus None"""
-        self.assertEqual(inner.parse_args(self.ARGS[:3]), (*self.ARGS[:3], None))
-        self.assertEqual(mock_stdout.getvalue(), "")
-
-    def test_four_args(self, mock_stdout):
-        """Should return four provided arguments"""
         self.assertEqual(inner.parse_args(self.ARGS), self.ARGS)
         self.assertEqual(mock_stdout.getvalue(), "")
 
@@ -733,52 +705,114 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(mock_stdout.getvalue(), "run0edit_inner.py: Error: too many arguments\n")
 
 
+class TestRemoveTempFile(unittest.TestCase):
+    """Tests for remove_temp_file"""
+
+    def setUp(self):
+        """Make test directory and test file"""
+        self.dir = new_test_dir()
+        self.file = f"{self.dir}/temp_file"
+        Path(self.file).touch(mode=0o600)
+
+    def tearDown(self):
+        """Remove test directory and test file"""
+        remove_test_dir(self.dir)
+
+    def test_removes_temp_file_and_dir(self):
+        """Should remove test file and test directory."""
+        self.assertTrue(os.path.isdir(self.dir))
+        self.assertTrue(os.path.isfile(self.file))
+        inner.remove_temp_file(self.file)
+        self.assertFalse(os.path.exists(self.dir))
+        self.assertFalse(os.path.exists(self.file))
+
+    def test_removes_empty_file(self):
+        """Should remove empty temp file if only_if_empty is set"""
+        self.assertTrue(os.path.isdir(self.dir))
+        self.assertTrue(os.path.isfile(self.file))
+        inner.remove_temp_file(self.file, only_if_empty=True)
+        self.assertFalse(os.path.exists(self.dir))
+        self.assertFalse(os.path.exists(self.file))
+
+    def test_preserves_nonempty_file(self):
+        """Should not remove non-empty temp file if only_if_empty is set"""
+        self.assertTrue(os.path.isdir(self.dir))
+        self.assertTrue(os.path.isfile(self.file))
+        Path(self.file).write_text("asdf")
+        inner.remove_temp_file(self.file, only_if_empty=True)
+        self.assertTrue(os.path.exists(self.dir))
+        self.assertTrue(os.path.exists(self.file))
+
+    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    def test_preserves_directory_if_unexpected_file(self, mock_stderr):
+        """Should remove file but not directory if unexpected extra file is present"""
+        unexpected_file = Path(self.dir) / "unexpected"
+        unexpected_file.touch(mode=0o600)
+        self.assertTrue(os.path.isdir(self.dir))
+        self.assertTrue(os.path.isfile(self.file))
+        self.assertTrue(os.path.isfile(unexpected_file))
+        inner.remove_temp_file(self.file)
+        self.assertTrue(os.path.exists(self.dir))
+        self.assertFalse(os.path.exists(self.file))
+        self.assertTrue(os.path.isfile(unexpected_file))
+        self.assertIn(
+            "run0edit: Warning: failed to remove temporary directory", mock_stderr.getvalue()
+        )
+
+
+@mock.patch("run0edit_inner.remove_temp_file")
 @mock.patch("run0edit_inner.run")
-@mock.patch("os.environ", new={"SUDO_UID": 42})
+@mock.patch("os.environ", new={"SUDO_USER": "username"})
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2, mock.sentinel.a3)
-    EXPECTED_ARGS = ((*ARGS[:3], 42), {"bgcolor": ARGS[3], "prompt_immutable": True})
+    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
+    EXPECTED_ARGS = ((*ARGS, "username"), {"prompt_immutable": True})
 
     @mock.patch("run0edit_inner.parse_args")
-    def test_parses_args(self, mock_parse_args, mock_run):
+    def test_parses_args(self, mock_parse_args, mock_run, mock_rm_temp):
         """Should parse arguments using parse_args"""
         mock_parse_args.return_value = self.ARGS
         inner.main(mock.sentinel.main_args)
         self.assertEqual(mock_parse_args.call_args, ((mock.sentinel.main_args,), {}))
         self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
+        self.assertEqual(mock_rm_temp.call_args, ((self.ARGS[1],), {}))
 
     @mock.patch("run0edit_inner.parse_args")
-    def test_invalid_args(self, mock_parse_args, mock_run):
+    def test_invalid_args(self, mock_parse_args, mock_run, mock_rm_temp):
         """Should return 2 if parse_args raises InvalidArgumentsError"""
         mock_parse_args.side_effect = inner.InvalidArgumentsError
         self.assertEqual(inner.main(mock.sentinel.main_args), 2)
         self.assertFalse(mock_run.called)
+        self.assertFalse(mock_rm_temp.called)
 
-    def test_normal_run(self, mock_run):
+    def test_normal_run(self, mock_run, mock_rm_temp):
         """Should pass correct args to run and return 0"""
         self.assertEqual(inner.main(self.ARGS), 0)
         self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
+        self.assertEqual(mock_rm_temp.call_args, ((self.ARGS[1],), {}))
 
-    def test_normal_run_with_uid(self, mock_run):
+    def test_normal_run_with_user(self, mock_run, mock_rm_temp):
         """Should pass correct args to run and return 0"""
-        self.assertEqual(inner.main(self.ARGS, uid=5), 0)
+        self.assertEqual(inner.main(self.ARGS, user="foo"), 0)
         self.assertEqual(
             mock_run.call_args,
-            ((*self.ARGS[:3], 5), {"bgcolor": self.ARGS[3], "prompt_immutable": True}),
+            ((*self.ARGS, "foo"), {"prompt_immutable": True}),
         )
+        self.assertEqual(mock_rm_temp.call_args, ((self.ARGS[1],), {}))
 
-    def test_failed_run(self, mock_run):
+    def test_failed_run(self, mock_run, mock_rm_temp):
         """Should pass correct args to run and return 1"""
         mock_run.side_effect = inner.Run0editError
         self.assertEqual(inner.main(self.ARGS), 1)
         self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
+        self.assertEqual(mock_rm_temp.call_args, ((self.ARGS[1],), {"only_if_empty": True}))
 
     @mock.patch.dict("os.environ", {"RUN0EDIT_DEBUG": "1"})
-    def test_failed_run_debug(self, mock_run):
+    def test_failed_run_debug(self, mock_run, mock_rm_temp):
         """Should pass correct args to run and raise exception"""
         mock_run.side_effect = inner.Run0editError
         with self.assertRaises(inner.Run0editError):
             inner.main(self.ARGS)
         self.assertEqual(mock_run.call_args, self.EXPECTED_ARGS)
+        self.assertEqual(mock_rm_temp.call_args, ((self.ARGS[1],), {"only_if_empty": True}))

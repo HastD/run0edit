@@ -31,8 +31,9 @@ example, `/usr/bin/vim`) to one of the following (listed in order of priority):
 If none of these point to an executable file, `run0edit` will default to using
 `nano` or `vi`.
 
-> Note: Editors that make use of JIT compilation (such as Neovim built with
-> LuaJIT) might not work: as a security measure, `run0edit` makes use of systemd
+> [!NOTE]
+> Editors that make use of JIT compilation (such as Neovim built with LuaJIT)
+> might not work: as a security measure, `run0edit` makes use of systemd
 > sandboxing settings, including `MemoryDenyWriteExecute`, which prevents code
 > generated dynamically at runtime from being executed.
 
