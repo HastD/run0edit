@@ -37,6 +37,8 @@ CAPABILITY_BOUNDING_SET: Final[list[str]] = [
     "CAP_LINUX_IMMUTABLE",
     "CAP_SETGID",
     "CAP_SETUID",
+    "CAP_SYS_NICE",
+    "CAP_SYS_RESOURCE",
 ]
 
 SYSTEM_CALL_DENY: Final[list[str]] = [

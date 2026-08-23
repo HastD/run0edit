@@ -4,7 +4,7 @@
 
 project(
     'run0edit',
-    version: '0.6.0',
+    version: '0.6.1',
     meson_version: '>= 1.3.0',
     license: 'Apache-2.0 OR MIT',
 )

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.6.0
+Version:        0.6.1
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -47,6 +47,9 @@ copied back to the original location when the editor is closed.
 %{_mandir}/man1/%{name}.1*
 
 %changelog
+* Sun Aug 23 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.6.1
+- Grant CAP_SYS_NICE and CAP_SYS_RESOURCE capabilities to inner script.
+
 * Sat Aug 22 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.6.0
 - Use execv to replace main process with privileged process. This makes run0edit
   work properly with Polkit's authentication caching.
