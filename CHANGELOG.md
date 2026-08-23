@@ -6,6 +6,13 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [v0.6.1] - 2026-08-23
+
+- Grant the privileged inner script the additional capabilities `CAP_SYS_NICE`
+  and `CAP_SYS_RESOURCE` to avoid permission errors if `pam_limits` needs to set
+  resource limits in the `runuser` call.
+  ([#108](https://github.com/HastD/run0edit/pull/108))
+
 ## [v0.6.0] - 2026-08-22
 
 This version contains two significant changes to run0edit's execution model.
