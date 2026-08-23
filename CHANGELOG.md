@@ -231,6 +231,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/HastD/run0edit/compare/v0.5.10...v0.6.0
 [v0.5.10]: https://github.com/HastD/run0edit/compare/v0.5.9...v0.5.10
 [v0.5.9]: https://github.com/HastD/run0edit/compare/v0.5.8...v0.5.9
