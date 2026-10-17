@@ -6,6 +6,10 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [Unreleased]
+
+- Use 256-bit BLAKE2b hash instead of default 512 bits.
+
 ## [v0.6.1] - 2026-08-23
 
 - Grant the privileged inner script the additional capabilities `CAP_SYS_NICE`
@@ -231,6 +235,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[Unreleased]: https://github.com/HastD/run0edit/compare/v0.6.1...HEAD
 [v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/HastD/run0edit/compare/v0.5.10...v0.6.0
 [v0.5.10]: https://github.com/HastD/run0edit/compare/v0.5.9...v0.5.10

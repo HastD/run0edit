@@ -26,8 +26,7 @@ from typing import Final
 
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
-INNER_SCRIPT_B2: Final[str] = "\
-7d215d913fbc27ace618e1354a6dadcc8277a3eb77dfa38a243d6a5e76e0e350afd5143a0b6bb34059b089cef19a957340cb2c1af4040c0ea489af31875bfb05"
+INNER_SCRIPT_B2: Final[str] = "21f7a46ca9a765179bca501703f8de12569a6e19fbe248e25e8ba3f612c636af"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 CAPABILITY_BOUNDING_SET: Final[list[str]] = [
@@ -83,10 +82,10 @@ SYSTEMD_SANDBOX_PROPERTIES: Final[list[str]] = [
 
 
 def validate_inner_script() -> bool:
-    """Ensure inner script has expected BLAKE2 hash."""
+    """Ensure inner script has expected BLAKE2b hash."""
     try:
         with open(INNER_SCRIPT_PATH, "rb") as f:
-            file_hash = hashlib.blake2b(f.read())
+            file_hash = hashlib.blake2b(f.read(), digest_size=32)
     except OSError:
         return False
     return file_hash.hexdigest() == INNER_SCRIPT_B2

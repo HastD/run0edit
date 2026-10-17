@@ -25,7 +25,7 @@ conf_data.set('LIBEXECDIR', libexecdir)
 conf_data.set('SYSCONFDIR', sysconfdir)
 
 main_script = configure_file(
-    input: 'run0edit_main.py.in',
+    input: 'run0edit_main.py',
     output: 'run0edit_main.py',
     configuration: conf_data,
 )

@@ -34,9 +34,9 @@ class TestGlobalConstants(unittest.TestCase):
         self.assertEqual(run0edit.INNER_SCRIPT_PATH, "/usr/libexec/run0edit/run0edit_inner.py")
 
     def test_inner_script_b2(self):
-        """INNER_SCRIPT_B2 should equal BLAKE2 hash of inner script"""
+        """INNER_SCRIPT_B2 should equal BLAKE2b hash of inner script"""
         with open("run0edit_inner.py", "rb") as f:
-            file_hash = hashlib.blake2b(f.read())
+            file_hash = hashlib.blake2b(f.read(), digest_size=32)
         self.assertEqual(file_hash.hexdigest(), run0edit.INNER_SCRIPT_B2)
 
     def test_default_conf_path(self):
