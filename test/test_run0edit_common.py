@@ -8,13 +8,42 @@
 Unit tests for functions duplicated between run0edit_main.py and run0edit_inner.py
 """
 
+import io
 import os
 import shutil
 import unittest
 from unittest import mock
 
+import pytest
+
 import run0edit_inner
 import run0edit_main
+
+
+class TestPrintErr(unittest.TestCase):
+    """Tests for print_err"""
+
+    def test_print_err(self):
+        """Should output text to stderr with word wrapping"""
+        MAX_WIDTH = 80
+        text = "Lorem ipsum dolor sit amet " * 10
+        for mod in (run0edit_inner, run0edit_main):
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+                mod.print_err(text)
+                output = mock_stderr.getvalue()
+            assert output.startswith("run0edit: ")
+            assert max(len(line) for line in output.split("\n")) <= MAX_WIDTH
+            unwrapped = output.replace("\n", " ")
+            assert unwrapped.removeprefix("run0edit: ").strip() == text.strip()
+
+    def test_no_wrap(self):
+        """Should output text to stderr without word wrapping"""
+        text = "    " + "Lorem ipsum dolor sit amet " * 10
+        for mod in (run0edit_inner, run0edit_main):
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+                mod.print_err(text, wrap=False)
+                output = mock_stderr.getvalue()
+            assert output.rstrip("\n") == "run0edit: " + text.lstrip(" ")
 
 
 class TestReadonlyFilesystem(unittest.TestCase):
@@ -28,18 +57,18 @@ class TestReadonlyFilesystem(unittest.TestCase):
         for mod in (run0edit_inner, run0edit_main):
             with mock.patch("os.statvfs") as mock_statvfs:
                 mock_statvfs.return_value = mock_statvfs_result
-                self.assertTrue(mod.readonly_filesystem(path))
-                self.assertEqual(mock_statvfs.call_args.args, (path,))
+                assert mod.readonly_filesystem(path)
+                mock_statvfs.assert_called_once_with(path)
 
     def test_rw_path(self):
         """Should detect non-read-only filesystem"""
         for mod in (run0edit_inner, run0edit_main):
-            self.assertFalse(mod.readonly_filesystem("/var"))
+            assert not mod.readonly_filesystem("/var")
 
     def test_bad_path(self):
         """Should return None for nonexistent path"""
         for mod in (run0edit_inner, run0edit_main):
-            self.assertIsNone(mod.readonly_filesystem("/this/path/does/not/exist"))
+            assert mod.readonly_filesystem("/this/path/does/not/exist") is None
 
 
 class TestFindCommand(unittest.TestCase):
@@ -48,15 +77,15 @@ class TestFindCommand(unittest.TestCase):
     def test_finds_cmds(self):
         """Should find external commands used by module"""
         for mod in (run0edit_inner, run0edit_main):
-            self.assertEqual(mod.find_command("chattr"), "/usr/bin/chattr")
-            self.assertEqual(mod.find_command("lsattr"), "/usr/bin/lsattr")
+            assert mod.find_command("chattr") == "/usr/bin/chattr"
+            assert mod.find_command("lsattr") == "/usr/bin/lsattr"
             if shutil.which("run0"):  # pragma: no cover
-                self.assertEqual(mod.find_command("run0"), "/usr/bin/run0")
+                assert mod.find_command("run0") == "/usr/bin/run0"
 
     def test_nonexistent_cmd(self):
         """Should not find nonexistent command"""
         for mod in (run0edit_inner, run0edit_main):
-            with self.assertRaisesRegex(mod.CommandNotFoundError, "this_cmd_does_not_exist"):
+            with pytest.raises(mod.CommandNotFoundError, match="this_cmd_does_not_exist"):
                 mod.find_command("this_cmd_does_not_exist")
 
     def test_check_args(self):
@@ -65,6 +94,4 @@ class TestFindCommand(unittest.TestCase):
         for mod in (run0edit_inner, run0edit_main):
             with mock.patch("shutil.which") as mock_which:
                 mod.find_command(cmd)
-                self.assertEqual(
-                    mock_which.call_args_list, [((cmd,), {"path": "/usr/bin:/bin:/usr/sbin:/sbin"})]
-                )
+                mock_which.assert_called_once_with(cmd, path="/usr/bin:/bin:/usr/sbin:/sbin")

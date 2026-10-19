@@ -9,8 +9,7 @@ fs.copyfile('mock-editor.sh')
 if get_option('integration-tests').enabled()
     test(
         'integration-test',
-        find_program('python3'),
-        args: ['-m', 'unittest', 'integration-test/integration_tests.py'],
-        is_parallel: false,
+        find_program('uv'),
+        args: ['run', 'pytest', 'integration-test/integration_tests.py'],
     )
 endif

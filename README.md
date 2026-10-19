@@ -67,7 +67,8 @@ meson compile -C build
 run0 meson install -C build
 ```
 
-Note: `run0edit` requires systemd version 256 or newer.
+Note: `run0edit` requires Python 3.11 or newer, and systemd version 256 or
+newer. `run0edit` is not tested on Python versions that are end-of-life.
 
 ## Usage
 

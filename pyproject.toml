@@ -4,8 +4,8 @@
 
 [project]
 name = "run0edit"
-version = "0.6.1"
-requires-python = ">= 3.10"
+version = "0.7.0"
+requires-python = ">= 3.11"
 authors = [
     {name = "Daniel Hast"},
     {name = "RoyalOughtness"},
@@ -20,6 +20,23 @@ license-files = ["LICENSES/*.txt"]
 [project.urls]
 Repository = "https://github.com/HastD/run0edit"
 Issues = "https://github.com/HastD/run0edit/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.11.13",
+    "ty>=0.0.72",
+    "uv>=0.13.0",
+]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_empty = true
 
 [tool.ruff]
 line-length = 100
@@ -61,18 +78,22 @@ ignore = [
 
 mccabe.max-complexity = 8
 pycodestyle.max-doc-length = 100
+pycodestyle.max-line-length = 105
 pylint.max-args = 6
-pylint.max-statements = 30
+pylint.max-statements = 40
 
 [tool.ruff.lint.per-file-ignores]
 "test/**.py" = [
     "PLR0913", # too-many-arguments
     "PLR0917", # too-many-positional-arguments
+    "PLR2004", # magic-value-comparison
+    "S101", # assert
+    "S607", # start-process-with-partial-path
     "SLF001", # private-member-access
 ]
 
-[dependency-groups]
-dev = [
-    "ty>=0.0.72",
-    "ruff>=0.11.13",
+"integration-test/**.py" = [
+    "PLR2004", # magic-value-comparison
+    "S101", # assert
+    "S607", # start-process-with-partial-path
 ]

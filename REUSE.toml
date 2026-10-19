@@ -4,3 +4,8 @@ version = 1
 path = "data/editor.conf"
 SPDX-FileCopyrightText = "(c) 2026 run0edit authors (https://github.com/HastD/run0edit)"
 SPDX-License-Identifier = "Apache-2.0 OR MIT"
+
+[[annotations]]
+path = "uv.lock"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"

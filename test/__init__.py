@@ -14,9 +14,11 @@ from typing import Final
 TEMP_FILE_PREFIX: Final[str] = "run0edit-unittest-"
 
 
-def new_test_file(contents: bytes = b"", *, mode: int | None = None) -> str:
+def new_test_file(
+    contents: bytes = b"", *, directory: str | None = None, mode: int | None = None
+) -> str:
     """Make a temporary file with the given contents."""
-    path = tempfile.mkstemp(prefix=TEMP_FILE_PREFIX)[1]
+    path = tempfile.mkstemp(prefix=TEMP_FILE_PREFIX, dir=directory)[1]
     if contents:
         with open(path, "wb") as f:
             f.write(contents)
@@ -31,7 +33,7 @@ def remove_test_file(path: str) -> None:
         raise ValueError("invalid filename - this doesn't look like a test file")
     try:
         os.remove(path)
-    except FileNotFoundError:
+    except FileNotFoundError:  # pragma: no cover
         pass
 
 
@@ -46,5 +48,5 @@ def remove_test_dir(path: str) -> None:
         raise ValueError("invalid directory name - this doesn't look like a test directory")
     try:
         shutil.rmtree(path)
-    except FileNotFoundError:
+    except FileNotFoundError:  # pragma: no cover
         pass
