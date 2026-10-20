@@ -5,11 +5,12 @@
 .actrc
 .artifacts
 .coverage
+.cache
 .mypy_cache
 .pyc
+.pytest_cache
 .ruff_cache
 .ssh
 .venv
 __pycache__
 build
-uv.lock

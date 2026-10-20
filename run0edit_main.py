@@ -26,7 +26,7 @@ from typing import Final
 
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
-INNER_SCRIPT_B2: Final[str] = "21f7a46ca9a765179bca501703f8de12569a6e19fbe248e25e8ba3f612c636af"
+INNER_SCRIPT_B2: Final[str] = "71937416d0a0c5d758fa7b5a70fb131273fc505dbd02927ccf9e86443a62735f"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 CAPABILITY_BOUNDING_SET: Final[list[str]] = [
@@ -91,10 +91,10 @@ def validate_inner_script() -> bool:
     return file_hash.hexdigest() == INNER_SCRIPT_B2
 
 
-def readonly_filesystem(path: str) -> bool | None:
-    """Determine if the path is on a read-only filesystem."""
+def readonly_filesystem(file: str | int) -> bool | None:
+    """Determine if the file is on a read-only filesystem."""
     try:
-        return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
+        return bool(os.statvfs(file).f_flag & os.ST_RDONLY)
     except OSError:
         return None
 

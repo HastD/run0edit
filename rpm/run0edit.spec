@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.6.1
+Version:        0.7.0
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -14,8 +14,8 @@ Source0:        https://github.com/HastD/%{name}/archive/refs/tags/v%{version}.t
 BuildArch:      noarch
 BuildRequires:  meson
 BuildRequires:  pandoc
-BuildRequires:  python3-devel >= 3.10
-Requires:       python3 >= 3.10
+BuildRequires:  python3-devel >= 3.11
+Requires:       python3 >= 3.11
 Requires:       systemd >= 256
 Requires:       util-linux
 Recommends:     e2fsprogs

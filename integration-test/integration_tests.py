@@ -14,7 +14,6 @@ import secrets
 import subprocess
 import sys
 import tempfile
-import unittest
 from typing import Final
 
 RUN0: Final[str] = "/usr/bin/run0"
@@ -44,7 +43,7 @@ def random_filename(length: int = 32) -> str:
     return secrets.token_hex((length + 1) // 2)
 
 
-class TestFile:
+class File:
     """A test file, possibly owned by root or immutable."""
 
     def __init__(
@@ -112,125 +111,127 @@ class TestFile:
         subprocess.run([RUN0, cmd("rm"), "-rf", "--", self._path], check=False, capture_output=True)
 
 
-class TestIntegration(unittest.TestCase):
-    """Integration tests"""
-
-    def test_edit_file(self):
-        """Should successfully change the contents of a root-owned file"""
-        file = TestFile(directory="/root", root_owned=True)
-        result = run0edit(file.path)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), EDITED_TEXT)
-
-    def test_file_unchanged(self):
-        """Should note that unchanged file is unchanged"""
-        file = TestFile(directory="/var", root_owned=True)
-        result = run0edit(file.path, editor=cmd("true"))
-        self.assertEqual(result.stdout, f"run0edit: {file.path} unchanged\n")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), "")
-
-    def test_create_file(self):
-        """Should successfully create a file in a root-owned directory"""
-        file = TestFile(directory="/var", create=False)
-        result = run0edit(file.path)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), EDITED_TEXT)
-
-    def test_not_created(self):
-        """Should not create empty file"""
-        file = TestFile(directory="/var", create=False)
-        result = run0edit(file.path, editor=cmd("true"))
-        self.assertEqual(result.stdout, f"run0edit: {file.path} not created\n")
-        self.assertEqual(result.stderr, "")
-        self.assertFalse(os.path.exists(file.path))
-
-    def test_edit_immutable_file(self):
-        """Should successfully change the contents of immutable file and restore the attribute"""
-        file = TestFile(root_owned=False, immutable=True)
-        result = run0edit(file.path)
-        self.assertEqual(result.stdout.strip(), "Immutable attribute reapplied.")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), EDITED_TEXT)
-        self.assertTrue(file.is_immutable())
-
-    def test_immutable_file_unchanged(self):
-        """Should not touch immutable flag on unchanged immutable file"""
-        file = TestFile(root_owned=False, immutable=True)
-        result = run0edit(file.path, editor=cmd("true"))
-        self.assertEqual(result.stdout, f"run0edit: {file.path} unchanged\n")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), "")
-
-    def test_create_file_in_immutable_directory(self):
-        """Should successfully create new file in immutable directory"""
-        directory = TestFile(root_owned=False, immutable=True, is_dir=True)
-        file = TestFile(directory=directory.path, create=False)
-        result = run0edit(file.path)
-        self.assertEqual(result.stdout.strip(), "Immutable attribute reapplied.")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), EDITED_TEXT)
-        self.assertTrue(directory.is_immutable())
-        self.assertFalse(file.is_immutable())
-
-    def test_create_file_in_unreadable_directory(self):
-        """Should successfully create new file in directory not readable by user"""
-        directory = TestFile(is_dir=True, mode=0o700)
-        file = TestFile(directory=directory.path, create=False)
-        result = run0edit(file.path)
-        self.assertEqual(result.stdout.strip(), "")
-        self.assertEqual(result.stderr, "")
-        self.assertEqual(file.read().strip(), EDITED_TEXT)
-
-    def test_user_writable_file(self):
-        """Should give expected error if file is user-writable"""
-        file = TestFile(root_owned=False)
-        result = run0edit(file.path, check=False)
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stdout, "")
-        self.assertIn(
-            " is writable by the current user; run0edit is unnecessary.",
-            result.stderr.replace("\n", " "),
-        )
-        self.assertEqual(file.read().strip(), "")
-
-    def test_read_only_filesystem(self):
-        """Should give expected error if file is on read-only filesystem"""
-        ro_mount_dir = tempfile.mkdtemp()
-        subprocess.run(
-            [
-                RUN0,
-                "--via-shell",
-                "mount",
-                "--bind",
-                "-o",
-                "ro",
-                tempfile.gettempdir(),
-                ro_mount_dir,
-            ],
-            check=True,
-        )
-        file = TestFile(directory=ro_mount_dir, create=False)
-        result = run0edit(file.path, check=False)
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(
-            result.stderr.strip().replace("\n", " "),
-            f"run0edit: {file.path} is on a read-only filesystem.",
-        )
-        subprocess.run([RUN0, cmd("umount"), ro_mount_dir], check=True)
-        os.rmdir(ro_mount_dir)
-
-    def test_editor_fails(self):
-        """Should give expected error if editor fails"""
-        file = TestFile(directory="/var", root_owned=True)
-        result = run0edit(file.path, editor=cmd("false"), check=False)
-        self.assertEqual(result.returncode, 1)
-        self.assertRegex(result.stdout, "^run0edit: failed to edit temporary file at ")
-        self.assertEqual(file.read().strip(), "")
+def test_edit_file():
+    """Should successfully change the contents of a root-owned file"""
+    file = File(directory="/root", root_owned=True)
+    result = run0edit(file.path)
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert file.read().strip() == EDITED_TEXT
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_file_unchanged():
+    """Should note that unchanged file is unchanged"""
+    file = File(directory="/var", root_owned=True)
+    result = run0edit(file.path, editor=cmd("true"))
+    assert result.stdout == f"run0edit: {file.path} unchanged\n"
+    assert result.stderr == ""
+    assert file.read().strip() == ""
+
+
+def test_create_file():
+    """Should successfully create a file in a root-owned directory"""
+    file = File(directory="/var", create=False)
+    result = run0edit(file.path)
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert file.read().strip() == EDITED_TEXT
+
+
+def test_not_created():
+    """Should not create empty file"""
+    file = File(directory="/var", create=False)
+    result = run0edit(file.path, editor=cmd("true"))
+    assert result.stdout == f"run0edit: {file.path} not created\n"
+    assert result.stderr == ""
+    assert not os.path.exists(file.path)
+
+
+def test_edit_immutable_file():
+    """Should successfully change the contents of immutable file and restore the attribute"""
+    file = File(root_owned=False, immutable=True)
+    result = run0edit(file.path)
+    assert result.stdout.strip() == "Immutable attribute reapplied."
+    assert result.stderr == ""
+    assert file.read().strip() == EDITED_TEXT
+    assert file.is_immutable()
+
+
+def test_immutable_file_unchanged():
+    """Should not touch immutable flag on unchanged immutable file"""
+    file = File(root_owned=False, immutable=True)
+    result = run0edit(file.path, editor=cmd("true"))
+    assert result.stdout == f"run0edit: {file.path} unchanged\n"
+    assert result.stderr == ""
+    assert file.read().strip() == ""
+
+
+def test_create_file_in_immutable_directory():
+    """Should successfully create new file in immutable directory"""
+    directory = File(root_owned=False, immutable=True, is_dir=True)
+    file = File(directory=directory.path, create=False)
+    result = run0edit(file.path)
+    assert result.stdout.strip() == "Immutable attribute reapplied."
+    assert result.stderr == ""
+    assert file.read().strip() == EDITED_TEXT
+    assert directory.is_immutable()
+    assert file.is_immutable()
+
+
+def test_create_file_in_unreadable_directory():
+    """Should successfully create new file in directory not readable by user"""
+    directory = File(is_dir=True, mode=0o700)
+    file = File(directory=directory.path, create=False)
+    result = run0edit(file.path)
+    assert result.stdout.strip() == ""
+    assert result.stderr == ""
+    assert file.read().strip() == EDITED_TEXT
+
+
+def test_user_writable_file():
+    """Should give expected error if file is user-writable"""
+    file = File(root_owned=False)
+    result = run0edit(file.path, check=False)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert " is writable by the current user; run0edit is unnecessary." in result.stderr.replace(
+        "\n", " "
+    )
+    assert file.read().strip() == ""
+
+
+def test_read_only_filesystem():
+    """Should give expected error if file is on read-only filesystem"""
+    ro_mount_dir = tempfile.mkdtemp()
+    subprocess.run(
+        [
+            RUN0,
+            "--via-shell",
+            "mount",
+            "--bind",
+            "-o",
+            "ro",
+            tempfile.gettempdir(),
+            ro_mount_dir,
+        ],
+        check=True,
+    )
+    file = File(directory=ro_mount_dir, create=False)
+    result = run0edit(file.path, check=False)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert (
+        result.stderr.strip().replace("\n", " ")
+        == f"run0edit: {file.path} is on a read-only filesystem."
+    )
+    subprocess.run([RUN0, cmd("umount"), ro_mount_dir], check=True)
+    os.rmdir(ro_mount_dir)
+
+
+def test_editor_fails():
+    """Should give expected error if editor fails"""
+    file = File(directory="/var", root_owned=True)
+    result = run0edit(file.path, editor=cmd("false"), check=False)
+    assert result.returncode == 1
+    assert result.stderr.startswith("run0edit: failed to edit temporary file at ")
+    assert file.read().strip() == ""
