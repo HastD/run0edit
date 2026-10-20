@@ -6,9 +6,31 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
-## [Unreleased]
+## [v0.7.0] - 2026-10-19
 
-- Use 256-bit BLAKE2b hash instead of default 512 bits.
+This version includes a major refactoring of the privileged inner script
+([#117](https://github.com/HastD/run0edit/pull/117)) that improves robustness
+against TOCTOU issues and various other abnormal states, mainly by using file
+descriptors instead of paths in various places. See SECURITY.md for details on
+the properties that this should guarantee.
+
+This release also includes the following changes:
+
+- Python 3.11 or newer is now required. (Note that Python 3.10 is end-of-life
+  anyway and no longer receiving security updates.)
+- Error messages coming from the inner script are now consistently printed to
+  stderr rather than stdout.
+- The immutable flag is inspected and set directly from Python using ioctl calls
+  rather than calling external `lsattr` and `chattr` commands. (This is also to
+  avoid TOCTOU issues, since this lets us identify the target file or directory
+  by file descriptor.)
+- The user prompt asking whether to proceed with editing an immutable file is
+  now stricter about what input it accepts: only "y" or "yes" (case-insensitive)
+  are accepted, rather than any string starting with "y".
+- The test suite now uses the Pytest framework and has been converted to use
+  Pytest idioms in place of the (less readable) `unittest` style.
+- A 256-bit BLAKE2b hash is used instead of the default 512 bits.
+  ([#116](https://github.com/HastD/run0edit/pull/116))
 
 ## [v0.6.1] - 2026-08-23
 
@@ -45,8 +67,7 @@ Second, the editor is now executed from within the privileged script using
 
 ### User-facing changes
 
-- Add man page.
-  ([#96](https://github.com/HastD/run0edit/pull/96))
+- Add man page. ([#96](https://github.com/HastD/run0edit/pull/96))
 - Ignore comment lines and empty lines in `/etc/run0edit/editor.conf`.
   ([#93](https://github.com/HastD/run0edit/pull/93))
 
@@ -235,7 +256,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.6.1...HEAD
+[v0.7.0]: https://github.com/HastD/run0edit/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/HastD/run0edit/compare/v0.5.10...v0.6.0
 [v0.5.10]: https://github.com/HastD/run0edit/compare/v0.5.9...v0.5.10

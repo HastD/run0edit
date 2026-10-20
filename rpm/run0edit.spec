@@ -47,6 +47,10 @@ copied back to the original location when the editor is closed.
 %{_mandir}/man1/%{name}.1*
 
 %changelog
+* Mon Oct 19 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.7.0
+- Require minimum Python version of 3.11.
+- Major refactor of inner script to improve robustness against TOCTOU issues.
+
 * Sun Aug 23 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.6.1
 - Grant CAP_SYS_NICE and CAP_SYS_RESOURCE capabilities to inner script.
 
