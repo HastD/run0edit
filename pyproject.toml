@@ -27,7 +27,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.11.13",
     "ty>=0.0.72",
-    "uv>=0.13.0",
+    "uv>=0.13.4",
 ]
 
 [tool.coverage.run]
