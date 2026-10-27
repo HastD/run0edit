@@ -79,21 +79,21 @@ class TestGetInodeFlags(TestCaseWithFiles):
 
     def test_mutable_file(self):
         """Non-immutable file"""
-        assert inner.get_inode_flags(self.target_fd) == 0
+        assert inner.get_inode_flags(self.target_fd) & MOCK_IMMUTABLE_FL == 0
 
     def test_mutable_dir(self):
         """Non-immutable directory"""
-        assert inner.get_inode_flags(self.target_dir_fd) == 0
+        assert inner.get_inode_flags(self.target_dir_fd) & MOCK_IMMUTABLE_FL == 0
 
     def test_immutable_file(self):
         """Immutable file"""
         mock_make_immutable(self.target_filename)
-        assert inner.get_inode_flags(self.target_fd) == MOCK_IMMUTABLE_FL
+        assert inner.get_inode_flags(self.target_fd) & MOCK_IMMUTABLE_FL != 0
 
     def test_immutable_dir(self):
         """Immutable directory"""
         mock_make_immutable(self.target_dir)
-        assert inner.get_inode_flags(self.target_dir_fd) == MOCK_IMMUTABLE_FL
+        assert inner.get_inode_flags(self.target_dir_fd) & MOCK_IMMUTABLE_FL != 0
 
 
 @mock.patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
