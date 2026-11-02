@@ -59,11 +59,10 @@ This works as follows:
 
 # ENVIRONMENT
 
-**VISUAL**, **EDITOR**
-: These environment variables are read for the default text editor if the
-  **--editor** argument is not used and there is no editor configured in
-  **editor.conf** (see **FILES** section below).
-: **VISUAL** has higher priority than **EDITOR**.
+**RUN0EDIT_EDITOR**, **VISUAL**, **EDITOR**
+: These environment variables are read for the default text editor (in order)
+  if the **--editor** argument is not used and there is no editor configured
+  in **editor.conf** (see **FILES** section below).
 
 # FILES
 

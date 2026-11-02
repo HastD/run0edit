@@ -156,7 +156,7 @@ def get_editor_path_from_conf(conf_path: str = DEFAULT_CONF_PATH) -> str | None:
 
 def get_editor_path_from_env() -> str | None:
     """Get path to editor executable from environment variables."""
-    for env_var in ("VISUAL", "EDITOR"):
+    for env_var in ("RUN0EDIT_EDITOR", "VISUAL", "EDITOR"):
         editor = os.environ.get(env_var)
         if editor is None:
             continue
