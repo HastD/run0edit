@@ -191,6 +191,27 @@ class TestGetEditorPathFromEnv(unittest.TestCase):
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_not_called()
 
+    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor"})
+    def test_run0edit_editor_valid(self, mock_which):
+        """Should return valid editor found in RUN0EDIT_EDITOR"""
+        mock_which.side_effect = lambda s: s
+        assert run0edit.get_editor_path_from_env() == "/run0edit-editor"
+        mock_which.assert_called_once_with("/run0edit-editor")
+
+    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "relative-editor"})
+    def test_relative_run0edit_editor_valid(self, mock_which):
+        """Should return valid relative editor found in RUN0EDIT_EDITOR"""
+        mock_which.side_effect = lambda s: f"/usr/bin/{s}"
+        assert run0edit.get_editor_path_from_env() == "/usr/bin/relative-editor"
+        mock_which.assert_called_once_with("relative-editor")
+
+    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/invalid"})
+    def test_run0edit_editor_invalid(self, mock_which):
+        """Should not return invalid editor found in RUN0EDIT_EDITOR"""
+        mock_which.return_value = None
+        assert run0edit.get_editor_path_from_env() is None
+        mock_which.assert_called_once_with("/invalid")
+
     @mock.patch.dict("os.environ", {"VISUAL": "/visual-editor"})
     def test_visual_valid(self, mock_which):
         """Should return valid editor found in VISUAL"""
@@ -226,12 +247,29 @@ class TestGetEditorPathFromEnv(unittest.TestCase):
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_called_once_with("/invalid")
 
+    @mock.patch.dict(
+        "os.environ",
+        {"RUN0EDIT_EDITOR": "/run0edit-editor", "VISUAL": "/visual", "EDITOR": "/editor"},
+    )
+    def test_run0edit_preferred_over_visual_and_editor(self, mock_which):
+        """Should prefer editor in RUN0EDIT_EDITOR over VISUAL and EDITOR"""
+        mock_which.side_effect = lambda s: s
+        assert run0edit.get_editor_path_from_env() == "/run0edit-editor"
+        mock_which.assert_called_once_with("/run0edit-editor")
+
     @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
     def test_visual_preferred_over_editor(self, mock_which):
         """Should prefer editor in VISUAL over editor in EDITOR"""
         mock_which.side_effect = lambda s: s
         assert run0edit.get_editor_path_from_env() == "/visual"
         mock_which.assert_called_once_with("/visual")
+
+    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor", "VISUAL": "/editor"})
+    def test_valid_visual_invalid_run0edit_editor(self, mock_which):
+        """Should fall back to editor in VISUAL if editor in RUN0EDIT_EDITOR is invalid"""
+        mock_which.side_effect = [None, "/editor"]
+        assert run0edit.get_editor_path_from_env() == "/editor"
+        assert mock_which.call_args_list == [mock.call("/run0edit-editor"), mock.call("/editor")]
 
     @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
     def test_valid_editor_invalid_visual(self, mock_which):
