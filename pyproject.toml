@@ -88,6 +88,7 @@ pylint.max-statements = 40
     "PLR0917", # too-many-positional-arguments
     "PLR2004", # magic-value-comparison
     "S101", # assert
+    "S106", # hardcoded-password-func-arg
     "S607", # start-process-with-partial-path
     "SLF001", # private-member-access
 ]

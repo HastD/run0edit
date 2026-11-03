@@ -16,6 +16,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   unittest:
     name: Run Python unit tests and linters
@@ -79,3 +83,8 @@ jobs:
           meson setup build -Dprefix=/usr -Dunit-tests=disabled -Dintegration-tests=enabled
           meson compile -C build
           meson test -C build --verbose integration-test
+
+      - name: Show full test logs
+        if: always()
+        run: |
+          cat ./build/meson-logs/testlog.txt

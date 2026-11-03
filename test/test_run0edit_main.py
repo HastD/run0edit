@@ -88,6 +88,29 @@ class TestValidateInnerScript(unittest.TestCase):
         assert not run0edit.validate_inner_script()
 
 
+class TestFindCommand(unittest.TestCase):
+    """Tests for find_command"""
+
+    def test_finds_cmds(self):
+        """Should find external commands used by module"""
+        assert run0edit.find_command("chattr") == "/usr/bin/chattr"
+        assert run0edit.find_command("lsattr") == "/usr/bin/lsattr"
+        if shutil.which("run0"):  # pragma: no cover
+            assert run0edit.find_command("run0") == "/usr/bin/run0"
+
+    def test_nonexistent_cmd(self):
+        """Should not find nonexistent command"""
+        with pytest.raises(run0edit.CommandNotFoundError, match="this_cmd_does_not_exist"):
+            run0edit.find_command("this_cmd_does_not_exist")
+
+    def test_check_args(self):
+        """Should pass correct arguments to shutil.which"""
+        cmd = mock.sentinel.cmd
+        with mock.patch("shutil.which") as mock_which:
+            run0edit.find_command(cmd)
+            mock_which.assert_called_once_with(cmd, path="/usr/bin:/bin:/usr/sbin:/sbin")
+
+
 class TestIsValidExecutable(unittest.TestCase):
     """Tests for is_valid_executable"""
 
@@ -614,10 +637,10 @@ class TestBuildRun0Arguments(unittest.TestCase):
         assert args.systemd_properties == props
         assert args.description.startswith("run0edit ")
         assert args._run0_cmd == "/usr/bin/run0"
-        assert args.extra_options == []
+        assert args.extra_options == ["--setenv=LANG"]
         assert args.command == "/usr/bin/python3"
         assert args.command_args == [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor]
-        assert len(args.argument_list()) == len(props) + 8
+        assert len(args.argument_list()) == len(props) + 9
         remove_test_file(path)
 
     def test_args_bgcolor(self, mock_find_cmd):
@@ -631,10 +654,10 @@ class TestBuildRun0Arguments(unittest.TestCase):
         assert args.systemd_properties == props
         assert args.description.startswith("run0edit ")
         assert args._run0_cmd == "/usr/bin/run0"
-        assert args.extra_options == ["--background=bgcolor"]
+        assert args.extra_options == ["--setenv=LANG", "--background=bgcolor"]
         assert args.command == "/usr/bin/python3"
         assert args.command_args == [run0edit.INNER_SCRIPT_PATH, path, temp_path, editor]
-        assert len(args.argument_list()) == len(props) + 9
+        assert len(args.argument_list()) == len(props) + 10
         remove_test_file(path)
 
     def test_debug_arg(self, mock_find_cmd):

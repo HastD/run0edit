@@ -10,15 +10,19 @@ with passwordless run0.
 """
 
 import os
+import pty
+import re
 import secrets
 import subprocess
 import sys
 import tempfile
+import termios
 from typing import Final
 
 RUN0: Final[str] = "/usr/bin/run0"
-EDITOR: Final[str] = os.path.realpath("./integration-test/mock-editor.sh")
 EDITED_TEXT: Final[str] = "~~~edited text~~~"
+DEFAULT_EDITOR_CMD: Final[str] = f'echo "{EDITED_TEXT}" >"$1"'
+WINDOW_SIZE: Final[tuple[int, int]] = (32, 100)
 
 
 def cmd(name: str) -> str:
@@ -26,16 +30,54 @@ def cmd(name: str) -> str:
     return f"/usr/bin/{name}"
 
 
+def parse_pty_output(data: bytes) -> str:
+    """Clean initial ANSI control codes and normalize line breaks"""
+    data = re.sub(rb"^\x1b\][^\x1b]*\x1b\\", b"", data)
+    return data.decode().strip().replace("\r\n", "\n")
+
+
 def run0edit(
-    *args: str, editor: str = EDITOR, check: bool = True
-) -> subprocess.CompletedProcess[str]:
-    """Call run0edit with the provided arguments"""
-    cmd_args = ["./run0edit-local", f"--editor={editor}", "--debug", "--no-prompt", "--", *args]
-    result = subprocess.run(cmd_args, check=False, capture_output=True, text=True)
-    if check and result.returncode != 0:
-        print(f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}\n", file=sys.stderr)
-        raise subprocess.CalledProcessError(result.returncode, cmd_args)
-    return result
+    *args: str, editor_cmd: str = DEFAULT_EDITOR_CMD, check: bool = True
+) -> tuple[int, str]:
+    """Call run0edit with the provided arguments in a PTY, return the exit code and output"""
+    try:
+        editor_fd, editor = tempfile.mkstemp(prefix="run0edit-editor-", text=True)
+        with os.fdopen(editor_fd, "w", encoding="utf8") as f:
+            f.write("#!/bin/sh\n" + editor_cmd + "\n")
+        os.chmod(editor, 0o700)
+
+        cmd_args = [
+            "./run0edit-local",
+            f"--editor={editor}",
+            "--background=",
+            "--debug",
+            "--no-prompt",
+            "--",
+            *args,
+        ]
+        pid, ptm = pty.fork()
+        if pid == 0:
+            os.execv("./run0edit-local", cmd_args)
+
+        termios.tcsetwinsize(ptm, WINDOW_SIZE)
+        output = b""
+        try:
+            while new_data := os.read(ptm, 1024):
+                output += new_data
+        except OSError:
+            pass
+        _, waitstatus = os.waitpid(pid, 0)
+        status = os.waitstatus_to_exitcode(waitstatus)
+        output = parse_pty_output(output)
+        if check and status != 0:
+            print(f"output:\n{output}\n", file=sys.stderr)
+            raise RuntimeError
+        return status, output
+    finally:
+        try:
+            os.remove(editor)
+        except OSError:
+            pass
 
 
 def random_filename(length: int = 32) -> str:
@@ -114,45 +156,40 @@ class File:
 def test_edit_file():
     """Should successfully change the contents of a root-owned file"""
     file = File(directory="/root", root_owned=True)
-    result = run0edit(file.path)
-    assert result.stdout == ""
-    assert result.stderr == ""
+    _, output = run0edit(file.path)
+    assert output == ""
     assert file.read().strip() == EDITED_TEXT
 
 
 def test_file_unchanged():
     """Should note that unchanged file is unchanged"""
     file = File(directory="/var", root_owned=True)
-    result = run0edit(file.path, editor=cmd("true"))
-    assert result.stdout == f"run0edit: {file.path} unchanged\n"
-    assert result.stderr == ""
+    _, output = run0edit(file.path, editor_cmd="true")
+    assert output == f"run0edit: {file.path} unchanged"
     assert file.read().strip() == ""
 
 
 def test_create_file():
     """Should successfully create a file in a root-owned directory"""
     file = File(directory="/var", create=False)
-    result = run0edit(file.path)
-    assert result.stdout == ""
-    assert result.stderr == ""
+    _, output = run0edit(file.path)
+    assert output == ""
     assert file.read().strip() == EDITED_TEXT
 
 
 def test_not_created():
     """Should not create empty file"""
     file = File(directory="/var", create=False)
-    result = run0edit(file.path, editor=cmd("true"))
-    assert result.stdout == f"run0edit: {file.path} not created\n"
-    assert result.stderr == ""
+    _, output = run0edit(file.path, editor_cmd="true")
+    assert output == f"run0edit: {file.path} not created"
     assert not os.path.exists(file.path)
 
 
 def test_edit_immutable_file():
     """Should successfully change the contents of immutable file and restore the attribute"""
     file = File(root_owned=False, immutable=True)
-    result = run0edit(file.path)
-    assert result.stdout.strip() == "Immutable attribute reapplied."
-    assert result.stderr == ""
+    _, output = run0edit(file.path)
+    assert output == "Immutable attribute reapplied."
     assert file.read().strip() == EDITED_TEXT
     assert file.is_immutable()
 
@@ -160,9 +197,8 @@ def test_edit_immutable_file():
 def test_immutable_file_unchanged():
     """Should not touch immutable flag on unchanged immutable file"""
     file = File(root_owned=False, immutable=True)
-    result = run0edit(file.path, editor=cmd("true"))
-    assert result.stdout == f"run0edit: {file.path} unchanged\n"
-    assert result.stderr == ""
+    _, output = run0edit(file.path, editor_cmd="true")
+    assert output == f"run0edit: {file.path} unchanged"
     assert file.read().strip() == ""
 
 
@@ -170,9 +206,8 @@ def test_create_file_in_immutable_directory():
     """Should successfully create new file in immutable directory"""
     directory = File(root_owned=False, immutable=True, is_dir=True)
     file = File(directory=directory.path, create=False)
-    result = run0edit(file.path)
-    assert result.stdout.strip() == "Immutable attribute reapplied."
-    assert result.stderr == ""
+    _, output = run0edit(file.path)
+    assert output == "Immutable attribute reapplied."
     assert file.read().strip() == EDITED_TEXT
     assert directory.is_immutable()
     assert file.is_immutable()
@@ -182,21 +217,17 @@ def test_create_file_in_unreadable_directory():
     """Should successfully create new file in directory not readable by user"""
     directory = File(is_dir=True, mode=0o700)
     file = File(directory=directory.path, create=False)
-    result = run0edit(file.path)
-    assert result.stdout.strip() == ""
-    assert result.stderr == ""
+    _, output = run0edit(file.path)
+    assert output == ""
     assert file.read().strip() == EDITED_TEXT
 
 
 def test_user_writable_file():
     """Should give expected error if file is user-writable"""
     file = File(root_owned=False)
-    result = run0edit(file.path, check=False)
-    assert result.returncode == 1
-    assert result.stdout == ""
-    assert " is writable by the current user; run0edit is unnecessary." in result.stderr.replace(
-        "\n", " "
-    )
+    status, output = run0edit(file.path, check=False)
+    assert status == 1
+    assert " is writable by the current user; run0edit is unnecessary." in output.replace("\n", " ")
     assert file.read().strip() == ""
 
 
@@ -217,12 +248,10 @@ def test_read_only_filesystem():
         check=True,
     )
     file = File(directory=ro_mount_dir, create=False)
-    result = run0edit(file.path, check=False)
-    assert result.returncode == 1
-    assert result.stdout == ""
+    status, output = run0edit(file.path, check=False)
+    assert status == 1
     assert (
-        result.stderr.strip().replace("\n", " ")
-        == f"run0edit: {file.path} is on a read-only filesystem."
+        output.strip().replace("\n", " ") == f"run0edit: {file.path} is on a read-only filesystem."
     )
     subprocess.run([RUN0, cmd("umount"), ro_mount_dir], check=True)
     os.rmdir(ro_mount_dir)
@@ -231,7 +260,52 @@ def test_read_only_filesystem():
 def test_editor_fails():
     """Should give expected error if editor fails"""
     file = File(directory="/var", root_owned=True)
-    result = run0edit(file.path, editor=cmd("false"), check=False)
-    assert result.returncode == 1
-    assert result.stderr.startswith("run0edit: failed to edit temporary file at ")
+    status, output = run0edit(file.path, editor_cmd="false", check=False)
+    assert status == 1
+    assert output.startswith("run0edit: failed to edit temporary file at ")
     assert file.read().strip() == ""
+
+
+def test_editor_runs_unprivileged():
+    """Editor should run with the unprivileged user's UID and GID"""
+    file = File(directory="/root", root_owned=True)
+    editor_cmd = r"""
+    printf 'uid=%s, euid=%s, gid=%s, egid=%s, groups=%s\n' \
+        "$(id -ru)" "$(id -u)" "$(id -rg)" "$(id -g)" "$(id -G)" \
+        >"$1"
+    """
+    run0edit(file.path, editor_cmd=editor_cmd)
+    uid = os.getuid()
+    gid = os.getgid()
+    assert file.read().strip() == f"uid={uid}, euid={uid}, gid={gid}, egid={gid}, groups={gid}"
+
+
+def test_nnp_bit_set():
+    """Editor should run with no_new_privs bit set"""
+    file = File(directory="/root", root_owned=True)
+    run0edit(file.path, editor_cmd='setpriv --dump >"$1"')
+    assert re.search(r"^no_new_privs:\s+1$", file.read(), re.MULTILINE)
+
+
+def test_pdeathsig_set():
+    """Editor should have parent death signal set to SIGHUP"""
+    file = File(directory="/root", root_owned=True)
+    _, output = run0edit(file.path, editor_cmd="exec setpriv --dump")
+    assert re.search(r"^Parent death signal:\s+HUP$", output, re.MULTILINE)
+
+
+def test_capabilities_dropped():
+    """Editor should run with no capabilities"""
+    file = File(directory="/root", root_owned=True)
+    run0edit(file.path, editor_cmd='/usr/sbin/capsh --print >"$1"')
+    assert re.search(r"^Current:\s+=$", file.read(), re.MULTILINE)
+    assert re.search(r"^Ambient set\s+=$", file.read(), re.MULTILINE)
+
+
+def test_window_size():
+    """Editor terminal should be sized to match the window"""
+    file = File(directory="/root", root_owned=True)
+    editor_cmd = 'sleep 0.5; printf "lines=%s, cols=%s\n" "$(tput lines)" "$(tput cols)" >"$1"'
+    run0edit(file.path, editor_cmd=editor_cmd)
+    lines, columns = WINDOW_SIZE
+    assert file.read().strip() == f"lines={lines}, cols={columns}"

@@ -6,16 +6,17 @@
 
 """Unit tests for run0edit_inner.py"""
 
-import getpass
 import hashlib
 import io
 import os
 import re
+import signal
 import subprocess
+import termios
 import unittest
 from pathlib import Path
 from typing import Final
-from unittest import mock
+from unittest.mock import ANY, Mock, call, mock_open, patch, sentinel
 
 import pytest
 
@@ -73,7 +74,7 @@ def test_ioctl_constants():
     assert inner.FS_IOC_SETFLAGS == 0x40086602
 
 
-@mock.patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
+@patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
 class TestGetInodeFlags(TestCaseWithFiles):
     """Tests for get_inode_flags"""
 
@@ -96,7 +97,7 @@ class TestGetInodeFlags(TestCaseWithFiles):
         assert inner.get_inode_flags(self.target_dir_fd) & MOCK_IMMUTABLE_FL != 0
 
 
-@mock.patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
+@patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
 class TestIsImmutable(TestCaseWithFiles):
     """Tests for is_immutable"""
 
@@ -118,14 +119,14 @@ class TestIsImmutable(TestCaseWithFiles):
         mock_make_immutable(self.target_dir)
         assert inner.is_immutable(self.target_dir_fd)
 
-    @mock.patch("fcntl.ioctl")
+    @patch("fcntl.ioctl")
     def test_ioctl_error(self, mock_ioctl):
         """Returns false if ioctl fails"""
         mock_ioctl.side_effect = OSError
         assert not inner.is_immutable(self.target_fd)
 
 
-@mock.patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
+@patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
 class TestSetImmutableFlag(TestCaseWithFiles):
     """Tests for set_immutable_flag"""
 
@@ -155,7 +156,7 @@ class TestSetImmutableFlag(TestCaseWithFiles):
         inner.set_immutable_flag(fd, False)
         assert not inner.is_immutable(fd)
 
-    @mock.patch("fcntl.ioctl")
+    @patch("fcntl.ioctl")
     def test_chattr_error(self, mock_ioctl):
         """Raises expected error if ioctl fails"""
         mock_ioctl.side_effect = OSError
@@ -163,8 +164,8 @@ class TestSetImmutableFlag(TestCaseWithFiles):
             inner.set_immutable_flag(self.target_fd, True)
 
 
-@mock.patch("run0edit_inner.input", create=True)
-@mock.patch("sys.stdout", new_callable=io.StringIO)
+@patch("run0edit_inner.input", create=True)
+@patch("sys.stdout", new_callable=io.StringIO)
 class TestPromptRemoveImmutable(unittest.TestCase):
     """Tests for prompt_remove_immutable"""
 
@@ -197,34 +198,6 @@ class TestPromptRemoveImmutable(unittest.TestCase):
         path = "/etc"
         for _ in answers:
             assert not inner.prompt_remove_immutable(path, is_dir=True)
-
-
-class TestRunCommand(unittest.TestCase):
-    """Tests for run_command"""
-
-    def test_echo(self):
-        """Should get correct output from echo"""
-        out = inner.run_command("echo", "test", capture_output=True)
-        assert out == "test\n"
-
-    def test_not_shell(self):
-        """Command should not be run as a shell"""
-        out = inner.run_command("echo", ";", "echo", "foo", capture_output=True)
-        assert out == "; echo foo\n"
-
-    def test_not_captured(self):
-        """Should get no output if not captured"""
-        assert inner.run_command("true") is None
-
-    def test_cmd_not_found(self):
-        """Running nonexistent command should raise correct error"""
-        with pytest.raises(inner.CommandNotFoundError):
-            inner.run_command("this_cmd_does_not_exist")
-
-    def test_cmd_fails(self):
-        """Failed command should raise correct error"""
-        with pytest.raises(inner.SubprocessError):
-            inner.run_command("false")
 
 
 class TestGetDirFd(TestCaseWithFiles):
@@ -312,14 +285,14 @@ class TestCheckReadonly(TestCaseWithFiles):
         """Should return READ_WRITE for writable directory"""
         assert inner.check_readonly(self.target_dir_fd) == inner.FileStatus.READ_WRITE
 
-    @mock.patch("run0edit_inner.is_immutable")
+    @patch("run0edit_inner.is_immutable")
     def test_immutable(self, mock_is_immutable):
         """Should return IMMUTABLE for immutable file"""
         mock_is_immutable.return_value = True
         fd = os.open(self.RO_FILE, self.read_flags)
         assert inner.check_readonly(fd) == inner.FileStatus.IMMUTABLE
 
-    @mock.patch("run0edit_inner.readonly_filesystem")
+    @patch("run0edit_inner.readonly_filesystem")
     def test_ro_fs(self, mock_ro_fs):
         """Path on read-only filesystem should raise correct error"""
         mock_ro_fs.return_value = True
@@ -332,14 +305,14 @@ class TestCheckReadonly(TestCaseWithFiles):
         assert inner.check_readonly(dirfd) == inner.FileStatus.READ_ONLY_OTHER
 
 
-@mock.patch("run0edit_inner.prompt_remove_immutable")
-@mock.patch("run0edit_inner.check_readonly")
+@patch("run0edit_inner.prompt_remove_immutable")
+@patch("run0edit_inner.check_readonly")
 class TestHandleCheckReadonly(TestCaseWithFiles):
     """Tests for handle_check_readonly"""
 
     def test_check_args(self, mock_check_ro, mock_prompt):
         """Should pass expected arguments to check_readonly"""
-        s = mock.sentinel
+        s = sentinel
         with pytest.raises(AssertionError, match=r"^Expected code to be unreachable"):
             inner.handle_check_readonly(s.fd, s.path, prompt_immutable=s.prompt)
         mock_check_ro.assert_called_once_with(s.fd)
@@ -489,7 +462,7 @@ class TestCopyFdContents(TestCaseWithFiles):
         with open(self.temp_filename, "rb") as f:
             assert f.read() == self.target_contents
 
-    @mock.patch("os.write")
+    @patch("os.write")
     def test_converts_error(self, mock_write):
         """Should convert OSError to FileCopyError"""
         mock_write.side_effect = OSError
@@ -510,16 +483,16 @@ class TestCopyToTempFile(TestCaseWithFiles):
         # Ensure fd wasn't closed
         os.lseek(self.target_fd, 0, os.SEEK_SET)
 
-    @mock.patch("os.close")
-    @mock.patch("run0edit_inner.copy_fd_contents")
-    @mock.patch("run0edit_inner.open_temp_file")
+    @patch("os.close")
+    @patch("run0edit_inner.copy_fd_contents")
+    @patch("run0edit_inner.open_temp_file")
     def test_calls_open_temp_file(self, mock_open_temp, mock_copy_fd, mock_close):
         """Should copy using fd created with open_temp_file"""
-        s = mock.sentinel
+        s = sentinel
         mock_open_temp.return_value = s.temp_fd
         inner.copy_to_temp_file(original_fd=s.orig_fd, temp_file=s.temp_file, uid_gid=s.uid_gid)
-        mock_open_temp.assert_called_once_with(s.temp_file, uid_gid=s.uid_gid, flags=mock.ANY)
-        mock_copy_fd.assert_called_once_with(src=s.orig_fd, dest=s.temp_fd, bufsize=mock.ANY)
+        mock_open_temp.assert_called_once_with(s.temp_file, uid_gid=s.uid_gid, flags=ANY)
+        mock_copy_fd.assert_called_once_with(src=s.orig_fd, dest=s.temp_fd, bufsize=ANY)
         mock_close.assert_called_once_with(s.temp_fd)
 
 
@@ -583,7 +556,7 @@ class TestCmpFdContents(unittest.TestCase):
         assert os.lseek(self.fd2, 0, os.SEEK_CUR) == 0
 
 
-@mock.patch("run0edit_inner.cmp_fd_contents")
+@patch("run0edit_inner.cmp_fd_contents")
 class TestNeedsCopyFromTmp(TestCaseWithFiles):
     """Tests for needs_copy_from_tmp"""
 
@@ -604,25 +577,25 @@ class TestNeedsCopyFromTmp(TestCaseWithFiles):
     def test_cmp_same(self, mock_cmp):
         """Should not need to copy from identical file"""
         mock_cmp.return_value = True
-        s = mock.sentinel
+        s = sentinel
         assert not inner.needs_copy_from_temp(s.src_fd, s.dest_fd, create=False)
-        mock_cmp.assert_called_once_with(s.src_fd, s.dest_fd, bufsize=mock.ANY)
+        mock_cmp.assert_called_once_with(s.src_fd, s.dest_fd, bufsize=ANY)
 
     def test_cmp_differ(self, mock_cmp):
         """Should need to copy from different file"""
         mock_cmp.return_value = False
-        s = mock.sentinel
+        s = sentinel
         assert inner.needs_copy_from_temp(s.src_fd, s.dest_fd, create=False)
-        mock_cmp.assert_called_once_with(s.src_fd, s.dest_fd, bufsize=mock.ANY)
+        mock_cmp.assert_called_once_with(s.src_fd, s.dest_fd, bufsize=ANY)
 
 
-@mock.patch("run0edit_inner.needs_copy_from_temp")
-@mock.patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
+@patch("run0edit_inner.needs_copy_from_temp")
+@patch("run0edit_inner.FS_IMMUTABLE_FL", MOCK_IMMUTABLE_FL)
 class TestCopyFromTempfile(TestCaseWithFiles):
     """Tests for copy_from_temp_file"""
 
-    @mock.patch("run0edit_inner.set_immutable_flag")
-    @mock.patch("run0edit_inner.copy_fd_contents")
+    @patch("run0edit_inner.set_immutable_flag")
+    @patch("run0edit_inner.copy_fd_contents")
     def test_no_copy_needed(self, mock_copy_fd, mock_set_immut, mock_needs_copy):
         """Should not copy if copy not needed"""
         mock_needs_copy.return_value = False
@@ -633,14 +606,12 @@ class TestCopyFromTempfile(TestCaseWithFiles):
             create_filename=None,
             dest_immutable=False,
         )
-        mock_needs_copy.assert_called_once_with(
-            mock.ANY, self.target_fd, create=False, bufsize=mock.ANY
-        )
+        mock_needs_copy.assert_called_once_with(ANY, self.target_fd, create=False, bufsize=ANY)
         mock_copy_fd.assert_not_called()
         mock_set_immut.assert_not_called()
         assert Path(self.target_filename).read_bytes() == self.target_contents
 
-    @mock.patch("run0edit_inner.set_immutable_flag")
+    @patch("run0edit_inner.set_immutable_flag")
     def test_copy_existing_mutable(self, mock_set_immut, mock_needs_copy):
         """Should copy to existing non-immutable file"""
         mock_needs_copy.return_value = True
@@ -651,9 +622,7 @@ class TestCopyFromTempfile(TestCaseWithFiles):
             create_filename=None,
             dest_immutable=False,
         )
-        mock_needs_copy.assert_called_once_with(
-            mock.ANY, self.target_fd, create=False, bufsize=mock.ANY
-        )
+        mock_needs_copy.assert_called_once_with(ANY, self.target_fd, create=False, bufsize=ANY)
         mock_set_immut.assert_not_called()
         assert Path(self.target_filename).read_bytes() == self.temp_contents
 
@@ -670,7 +639,7 @@ class TestCopyFromTempfile(TestCaseWithFiles):
             )
         assert not os.path.exists(self.new_filename)
 
-    @mock.patch("run0edit_inner.set_immutable_flag")
+    @patch("run0edit_inner.set_immutable_flag")
     def test_copy_new_mutable(self, mock_set_immut, mock_needs_copy):
         """Should copy to new non-immutable file"""
         mock_needs_copy.return_value = True
@@ -681,13 +650,11 @@ class TestCopyFromTempfile(TestCaseWithFiles):
             create_filename=os.path.basename(self.new_filename),
             dest_immutable=False,
         )
-        mock_needs_copy.assert_called_once_with(
-            mock.ANY, self.target_dir_fd, create=True, bufsize=mock.ANY
-        )
+        mock_needs_copy.assert_called_once_with(ANY, self.target_dir_fd, create=True, bufsize=ANY)
         mock_set_immut.assert_not_called()
         assert Path(self.new_filename).read_bytes() == self.temp_contents
 
-    @mock.patch("run0edit_inner.copy_fd_contents")
+    @patch("run0edit_inner.copy_fd_contents")
     def test_fail_copy_new_already_exists(self, mock_copy_fd, mock_needs_copy):
         """Should fail to copy to new file if it already exists"""
         mock_needs_copy.return_value = True
@@ -702,8 +669,8 @@ class TestCopyFromTempfile(TestCaseWithFiles):
         mock_copy_fd.assert_not_called()
         assert Path(self.target_filename).read_bytes() == self.target_contents
 
-    @mock.patch("run0edit_inner.set_immutable_flag")
-    @mock.patch("sys.stdout", new_callable=io.StringIO)
+    @patch("run0edit_inner.set_immutable_flag")
+    @patch("sys.stdout", new_callable=io.StringIO)
     def test_copy_existing_immutable(self, mock_stdout, mock_set_immut, mock_needs_copy):
         """Should copy to existing immutable file and set immutable attribute"""
         mock_needs_copy.return_value = True
@@ -717,12 +684,10 @@ class TestCopyFromTempfile(TestCaseWithFiles):
         assert Path(self.target_filename).read_bytes() == self.temp_contents
         assert mock_stdout.getvalue() == "Immutable attribute reapplied.\n"
         assert mock_set_immut.call_count == 2
-        mock_set_immut.assert_has_calls(
-            (mock.call(self.target_fd, False), mock.call(self.target_fd, True))
-        )
+        mock_set_immut.assert_has_calls((call(self.target_fd, False), call(self.target_fd, True)))
 
-    @mock.patch("run0edit_inner.set_immutable_flag")
-    @mock.patch("sys.stdout", new_callable=io.StringIO)
+    @patch("run0edit_inner.set_immutable_flag")
+    @patch("sys.stdout", new_callable=io.StringIO)
     def test_copy_new_immutable(self, mock_stdout, mock_set_immut, mock_needs_copy):
         """Should copy to new immutable file and set immutable attributes"""
         mock_needs_copy.return_value = True
@@ -738,15 +703,15 @@ class TestCopyFromTempfile(TestCaseWithFiles):
         assert mock_set_immut.call_count == 3
         mock_set_immut.assert_has_calls(
             (
-                mock.call(self.target_dir_fd, False),
-                mock.call(self.target_dir_fd, True),
-                mock.call(mock.ANY, True),
+                call(self.target_dir_fd, False),
+                call(self.target_dir_fd, True),
+                call(ANY, True),
             )
         )
 
-    @mock.patch("hashlib.file_digest")
-    @mock.patch("run0edit_inner.set_immutable_flag")
-    @mock.patch("sys.stdout", new_callable=io.StringIO)
+    @patch("hashlib.file_digest")
+    @patch("run0edit_inner.set_immutable_flag")
+    @patch("sys.stdout", new_callable=io.StringIO)
     def test_copy_immutable_checksum_mismatch(
         self, mock_stdout, mock_set_immut, mock_file_digest, mock_needs_copy
     ):
@@ -764,21 +729,19 @@ class TestCopyFromTempfile(TestCaseWithFiles):
         assert Path(self.target_filename).read_bytes() == self.temp_contents
         assert mock_stdout.getvalue() == "Immutable attribute reapplied.\n"
         assert mock_set_immut.call_count == 2
-        mock_set_immut.assert_has_calls(
-            (mock.call(self.target_fd, False), mock.call(self.target_fd, True))
-        )
-        mock_file_digest.assert_called_once_with(mock.ANY, "blake2b")
+        mock_set_immut.assert_has_calls((call(self.target_fd, False), call(self.target_fd, True)))
+        mock_file_digest.assert_called_once_with(ANY, "blake2b")
 
 
-@mock.patch("sys.stdout", new_callable=io.StringIO)
-@mock.patch("run0edit_inner.copy_from_temp_file")
+@patch("sys.stdout", new_callable=io.StringIO)
+@patch("run0edit_inner.copy_from_temp_file")
 class TestHandleCopyFromTempFile(TestCaseWithFiles):
     """Tests for handle_copy_from_temp_file"""
 
     def test_check_args(self, mock_copy, mock_stdout):
         """Check copy_from_temp_file is called with expected arguments"""
         mock_copy.return_value = True
-        s = mock.sentinel
+        s = sentinel
         inner.handle_copy_from_temp_file(
             temp_file=self.temp_filename,
             original_fd=s.orig_fd,
@@ -791,7 +754,7 @@ class TestHandleCopyFromTempFile(TestCaseWithFiles):
             temp_file=self.temp_filename,
             dest_fd=s.orig_fd,
             uid_gid=s.uid_gid,
-            create_filename=mock.ANY,
+            create_filename=ANY,
             dest_immutable=s.immut,
         )
         assert mock_stdout.getvalue() == ""
@@ -869,7 +832,7 @@ class TestHandleCopyFromTempFile(TestCaseWithFiles):
         }
         mock_copy.side_effect = iter(errors)
         for exc, message in errors.items():
-            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
                 with pytest.raises(exc):
                     inner.handle_copy_from_temp_file(
                         temp_file=self.temp_filename,
@@ -883,38 +846,295 @@ class TestHandleCopyFromTempFile(TestCaseWithFiles):
         assert mock_stdout.getvalue() == ""
 
 
-@mock.patch("run0edit_inner.run_command")
+class TestEditorEnvironment(unittest.TestCase):
+    """Tests for editor_environment"""
+
+    @patch("pwd.getpwuid")
+    @patch("run0edit_inner.open", mock_open(read_data=""), create=True)
+    @patch.dict(
+        "os.environ",
+        COLORTERM="colorterm-value",
+        LANG="lang-value",
+        PWD="pwd-value",
+        TERM="term-value",
+    )
+    def test_env_vars(self, m_pwuid):
+        """Test environment variable values"""
+        pw = Mock()
+        pw.pw_dir = sentinel.home
+        pw.pw_name = sentinel.name
+        pw.pw_shell = sentinel.shell
+        m_pwuid.return_value = pw
+        env = inner.editor_environment(sentinel.uid)
+        m_pwuid.assert_called_once_with(sentinel.uid)
+        assert env == {
+            "COLORTERM": "colorterm-value",
+            "HOME": sentinel.home,
+            "LANG": "lang-value",
+            "LOGNAME": sentinel.name,
+            "PATH": "/usr/local/bin:/bin:/usr/bin",
+            "PWD": "pwd-value",
+            "SHELL": sentinel.shell,
+            "TERM": "term-value",
+            "USER": sentinel.name,
+        }
+
+    @patch(
+        "run0edit_inner.open",
+        mock_open(read_data="foo\nENV_PATH   PATH=/some/path:/usr/bin\nbar\n"),
+        create=True,
+    )
+    def test_login_defs_path(self):
+        """Test path set in /etc/login.defs"""
+        env = inner.editor_environment(MY_UID)
+        assert env["PATH"] == "/some/path:/usr/bin"
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_unset_env_vars(self):
+        """Test handling of unset environment variables"""
+        env = inner.editor_environment(MY_UID)
+        for var in ("COLORTERM", "LANG", "PWD", "TERM"):
+            assert var not in env
+
+    @patch("run0edit_inner.open", create=True)
+    def test_login_defs_failed_open(self, m_open):
+        """Test failing to open /etc/login.defs"""
+        m_open.side_effect = OSError
+        env = inner.editor_environment(MY_UID)
+        m_open.assert_called_once_with("/etc/login.defs", encoding="utf8")
+        assert env["PATH"] == "/usr/local/bin:/bin:/usr/bin"
+
+
+@patch("signal.signal")
+class TestSetChildSignalHandlers(unittest.TestCase):
+    """Tests for set_child_signal_handlers"""
+
+    def test_sets_signal_handlers(self, m_signal):
+        """Should set new signal handler for all catchable signals"""
+        saved_handlers = inner.set_child_signal_handlers(sentinel.pid, sentinel.fd)
+        set_handlers_for = {c.args[0] for c in m_signal.call_args_list}
+        assert set_handlers_for == set(signal.Signals) - {signal.SIGKILL, signal.SIGSTOP}
+        assert set(saved_handlers.keys()) == set_handlers_for
+
+    def test_reset_handlers_on_error(self, m_signal):
+        """Should reset signal handlers if one signal handler raises an exception"""
+        m_signal.side_effect = [None, None, OSError, None, None]
+        with pytest.raises(OSError):
+            inner.set_child_signal_handlers(sentinel.pid, sentinel.fd)
+        assert m_signal.call_count == 5
+        signals_set = [c.args[0] for c in m_signal.call_args_list]
+        assert len(set(signals_set)) == 3
+        assert signals_set[0] == signals_set[3]
+        assert signals_set[1] == signals_set[4]
+
+
+@patch("os.write")
+@patch("os.read")
+@patch("select.select")
+@patch("os.set_blocking")
+class TestCopyPtyIo(unittest.TestCase):
+    """Tests for copy_pty_io"""
+
+    def test_copy_pty_io(self, m_setbl, m_select, m_read, m_write):
+        """Input on stdin should be written to the PTY"""
+        pty_data = b"data read from PTY"
+        pty_data_buf = bytearray(pty_data)
+        pty_fd = sentinel.pty_fd
+        stdin = sentinel.stdin
+        stdout = sentinel.stdout
+
+        def _mock_read(fd: int, _count: int) -> bytes:
+            if fd == stdin:
+                return b"."
+            out = bytes(pty_data_buf)
+            if not out:
+                raise OSError
+            pty_data_buf.clear()
+            return out
+
+        m_select.side_effect = [([stdin], [], []), ([stdin, pty_fd], [], []), ([pty_fd], [], [])]
+        m_read.side_effect = _mock_read
+        m_write.return_value = 1024
+
+        inner.copy_pty_io(pty_fd, stdin, stdout)
+
+        m_setbl.assert_called_once_with(pty_fd, False)
+        assert m_select.call_args_list == [call([stdin, pty_fd], [], [])] * 3
+        assert m_read.call_args_list == [
+            call(stdin, ANY),
+            call(stdin, ANY),
+            call(pty_fd, ANY),
+            call(pty_fd, ANY),
+        ]
+        assert m_write.call_args_list == [
+            call(pty_fd, b"."),
+            call(pty_fd, b"."),
+            call(stdout, pty_data),
+            call(stdout, b""),
+        ]
+
+
+@patch("run0edit_inner.os", create=True)
+class TestExecEditor(unittest.TestCase):
+    """Tests for exec_editor"""
+
+    def test_child_process(self, m_os):
+        """Should call expected functions in child process"""
+        s = sentinel
+        libc = Mock()
+        libc.prctl.return_value = 0
+        m_os._exit.side_effect = RuntimeError("_exit called")
+
+        inner.exec_editor(uid=s.uid, gid=s.gid, editor=s.editor, path=s.path, env=s.env, libc=libc)
+
+        m_os.setreuid.assert_called_once_with(s.uid, s.uid)
+        m_os.setregid.assert_called_once_with(s.gid, s.gid)
+        m_os.setgroups.assert_called_once_with((s.gid,))
+        assert libc.prctl.call_args_list == [
+            call(inner.PR_SET_PDEATHSIG, signal.SIGHUP),
+            call(inner.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0),
+        ]
+        m_os._exit.assert_not_called()
+        m_os.execve.assert_called_once_with(s.editor, [s.editor, s.path], s.env)
+
+    def test_child_process_deathsig_failed(self, m_os):
+        """Should exit if setting deathsig fails"""
+        s = sentinel
+        libc = Mock()
+        libc.prctl.side_effect = [-1, 0]
+        m_os._exit.side_effect = RuntimeError("_exit called")
+
+        with pytest.raises(RuntimeError, match="_exit called"):
+            inner.exec_editor(
+                uid=s.uid, gid=s.gid, editor=s.editor, path=s.path, env=s.env, libc=libc
+            )
+
+        m_os.setreuid.assert_called_once_with(s.uid, s.uid)
+        m_os.setregid.assert_called_once_with(s.gid, s.gid)
+        m_os.setgroups.assert_called_once_with((s.gid,))
+        libc.prctl.assert_called_once_with(inner.PR_SET_PDEATHSIG, signal.SIGHUP)
+        m_os._exit.assert_called_once_with(m_os.EX_OSERR)
+        m_os.execve.assert_not_called()
+
+    def test_child_process_nnp_failed(self, m_os):
+        """Should exit if setting no_new_privs fails"""
+        s = sentinel
+        libc = Mock()
+        libc.prctl.side_effect = [0, -1]
+        m_os._exit.side_effect = RuntimeError("_exit called")
+
+        with pytest.raises(RuntimeError, match="_exit called"):
+            inner.exec_editor(
+                uid=s.uid, gid=s.gid, editor=s.editor, path=s.path, env=s.env, libc=libc
+            )
+
+        m_os.setreuid.assert_called_once_with(s.uid, s.uid)
+        m_os.setregid.assert_called_once_with(s.gid, s.gid)
+        m_os.setgroups.assert_called_once_with((s.gid,))
+        assert libc.prctl.call_args_list == [
+            call(inner.PR_SET_PDEATHSIG, signal.SIGHUP),
+            call(inner.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0),
+        ]
+        m_os._exit.assert_called_once_with(m_os.EX_OSERR)
+        m_os.execve.assert_not_called()
+
+
+@patch("run0edit_inner.exec_editor")
+@patch("pty.fork")
+@patch("run0edit_inner.os", create=True)
+@patch("sys.stdin.fileno", Mock(return_value=sentinel.stdin))
+@patch("run0edit_inner.editor_environment", Mock(return_value=sentinel.env))
 class TestRunEditor(unittest.TestCase):
     """Tests for run_editor"""
 
-    @mock.patch("run0edit_inner.find_command")
-    def test_check_args(self, mock_find_cmd, mock_run_cmd):
-        """Should pass correct arguments to run_command"""
-        user = getpass.getuser()
-        editor = mock.sentinel.editor
-        path = mock.sentinel.path
-        mock_find_cmd.side_effect = lambda cmd: f"/bin/{cmd}"
-        inner.run_editor(uid=MY_UID, editor=editor, path=path)
-        mock_run_cmd.assert_called_once_with(
-            "runuser", "--pty", "-", user, "-c", 'exec "$0" "$1"', editor, path
+    @patch("ctypes.cdll.LoadLibrary")
+    def test_child_process(self, m_clib, m_os, m_fork, m_exec):
+        """Should run exec_editor in child process, and exit if control flow continues past it"""
+        m_fork.return_value = (0, None)
+        s = sentinel
+        m_clib.return_value = s.libc
+        m_os._exit.side_effect = Exception("ran os._exit")
+
+        with pytest.raises(Exception, match=r"ran os\._exit"):
+            inner.run_editor(uid_gid=(MY_UID, MY_GID), editor=s.editor, path=s.path)
+
+        m_exec.assert_called_once_with(
+            uid=MY_UID, gid=MY_GID, editor=s.editor, path=s.path, env=s.env, libc=s.libc
         )
+        m_os._exit.assert_called_once_with(1)
 
-    def test_error_messages(self, mock_run_cmd):
-        """Should print appropriate error messages and raise EditTempFileError"""
-        errors = {
-            inner.CommandNotFoundError: "failed to call runuser to start editor",
-            inner.SubprocessError: "failed to edit temporary file",
-        }
-        mock_run_cmd.side_effect = iter(errors)
-        for message in errors.values():
-            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
-                with pytest.raises(inner.EditTempFileError):
-                    inner.run_editor(uid=MY_UID, editor="butterfly", path="some/path")
-                assert message in mock_stderr.getvalue()
+    @patch("run0edit_inner.copy_pty_io")
+    @patch("signal.signal")
+    @patch("tty.setraw")
+    @patch("termios.tcsetattr")
+    @patch("termios.tcgetattr")
+    def test_parent_process(
+        self, m_tcgetattr, m_tcsetattr, m_setraw, m_signal, m_copy_io, m_os, m_fork, m_exec
+    ):
+        """Should call expected functions in parent process"""
+        s = sentinel
+        m_fork.return_value = (s.pid, s.fd)
+        m_os.waitpid.return_value = (ANY, ANY)
+        m_os.waitstatus_to_exitcode.return_value = 0
+        m_os.get_terminal_size.return_value = (s.columns, s.rows)
+        m_tcgetattr.return_value = s.term_attrs
+
+        inner.run_editor(uid_gid=(s.uid, s.gid), editor=s.editor, path=s.path)
+
+        m_exec.assert_not_called()
+        m_os._exit.assert_not_called()
+        assert m_os.seteuid.call_count == 2
+        assert m_os.setegid.call_count == 2
+        m_os.waitpid.assert_called_once_with(s.pid, 0)
+
+        # Assert raw mode set and then original terminal attributes restored
+        m_tcgetattr.assert_called_once_with(s.stdin)
+        m_setraw.assert_any_call(s.stdin)
+        m_setraw.assert_any_call(s.fd)
+        m_tcsetattr.assert_called_once_with(s.stdin, ANY, s.term_attrs)
+
+        for sig in signal.Signals:
+            if sig not in (signal.SIGKILL, signal.SIGSTOP):
+                assert len([c for c in m_signal.call_args_list if c.args[0] == sig]) == 2
+        m_copy_io.assert_called_once_with(s.fd, s.stdin, ANY)
+
+    @patch("run0edit_inner.copy_pty_io")
+    @patch("signal.signal")
+    @patch("tty.setraw")
+    @patch("termios.tcsetattr")
+    @patch("termios.tcgetattr")
+    def test_parent_process_failed(
+        self, m_tcgetattr, m_tcsetattr, m_setraw, m_signal, m_copy_io, m_os, m_fork, m_exec
+    ):
+        """Should raise expected error if child process fails"""
+        s = sentinel
+        m_fork.return_value = (s.pid, s.fd)
+        m_os.waitpid.return_value = (ANY, ANY)
+        m_os.waitstatus_to_exitcode.return_value = 1
+
+        with pytest.raises(inner.EditTempFileError):
+            inner.run_editor(uid_gid=(s.uid, s.gid), editor=s.editor, path=s.path)
+
+        m_exec.assert_not_called()
+        m_os._exit.assert_not_called()
+        assert m_os.seteuid.call_count == 2
+        assert m_os.setegid.call_count == 2
+        m_os.waitpid.assert_called_once_with(s.pid, 0)
+
+        # Assert raw mode set and then original terminal attributes restored
+        m_tcgetattr.assert_called_once_with(s.stdin)
+        m_setraw.assert_any_call(s.stdin)
+        m_setraw.assert_any_call(s.fd)
+        m_tcsetattr.assert_called_once_with(s.stdin, ANY, ANY)
+
+        for sig in signal.Signals:
+            if sig not in (signal.SIGKILL, signal.SIGSTOP):
+                assert len([c for c in m_signal.call_args_list if c.args[0] == sig]) == 2
+        m_copy_io.assert_called_once_with(s.fd, s.stdin, ANY)
 
 
-@mock.patch("sys.stdout", new_callable=io.StringIO)
-@mock.patch("run0edit_inner.run_editor")
+@patch("sys.stdout", new_callable=io.StringIO)
+@patch("run0edit_inner.run_editor")
 class TestRun(TestCaseWithFiles):
     """Tests for run"""
 
@@ -923,12 +1143,12 @@ class TestRun(TestCaseWithFiles):
         with open(self.temp_filename, "wb") as f:
             f.write(data)
 
-    @mock.patch("os.close", lambda _: None)
-    @mock.patch("run0edit_inner.handle_copy_from_temp_file")
-    @mock.patch("run0edit_inner.copy_to_temp_file")
-    @mock.patch("run0edit_inner.handle_check_readonly")
-    @mock.patch("run0edit_inner.get_fd_for_original")
-    @mock.patch("os.path.realpath")
+    @patch("os.close", lambda _: None)
+    @patch("run0edit_inner.handle_copy_from_temp_file")
+    @patch("run0edit_inner.copy_to_temp_file")
+    @patch("run0edit_inner.handle_check_readonly")
+    @patch("run0edit_inner.get_fd_for_original")
+    @patch("os.path.realpath")
     def test_check_args(
         self,
         m_realpath,
@@ -940,7 +1160,7 @@ class TestRun(TestCaseWithFiles):
         m_stdout,
     ):
         """Should pass correct arguments to functions"""
-        s = mock.sentinel
+        s = sentinel
         m_realpath.return_value = s.realpath
         m_get_fd.return_value = (s.fd_orig, True)
         m_check_ro.return_value = s.immutable
@@ -951,7 +1171,9 @@ class TestRun(TestCaseWithFiles):
         m_copy_to_temp.assert_called_once_with(
             original_fd=s.fd_orig, temp_file=s.temp_filename, uid_gid=(s.uid, s.gid)
         )
-        m_run_editor.assert_called_once_with(uid=s.uid, editor=s.editor, path=s.temp_filename)
+        m_run_editor.assert_called_once_with(
+            uid_gid=(s.uid, s.gid), editor=s.editor, path=s.temp_filename
+        )
         m_copy_from_temp.assert_called_once_with(
             temp_file=s.temp_filename,
             original_fd=s.fd_orig,
@@ -962,7 +1184,7 @@ class TestRun(TestCaseWithFiles):
         )
         assert m_stdout.getvalue() == ""
 
-    @mock.patch("run0edit_inner.get_fd_for_original")
+    @patch("run0edit_inner.get_fd_for_original")
     def test_get_fd_error_messages(self, mock_get_fd, mock_run_editor, mock_stdout):
         """
         Should print expected error messages and re-raise exceptions for get_fd_for_original
@@ -973,7 +1195,7 @@ class TestRun(TestCaseWithFiles):
         }
         mock_get_fd.side_effect = iter(errors)
         for exc, message in errors.items():
-            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
                 with pytest.raises(exc):
                     inner.run(
                         self.target_filename, self.temp_filename, "ed", uid_gid=(MY_UID, MY_GID)
@@ -983,7 +1205,7 @@ class TestRun(TestCaseWithFiles):
         mock_run_editor.assert_not_called()
         assert mock_stdout.getvalue() == ""
 
-    @mock.patch("run0edit_inner.handle_check_readonly")
+    @patch("run0edit_inner.handle_check_readonly")
     def test_check_ro_error_messages(self, mock_check_ro, mock_run_editor, mock_stdout):
         """
         Should print expected error messages and re-raise exceptions for handle_check_readonly
@@ -994,7 +1216,7 @@ class TestRun(TestCaseWithFiles):
         }
         mock_check_ro.side_effect = iter(errors)
         for exc, message in errors.items():
-            with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
                 with pytest.raises(exc):
                     inner.run(
                         self.target_filename, self.temp_filename, "ed", uid_gid=(MY_UID, MY_GID)
@@ -1005,7 +1227,7 @@ class TestRun(TestCaseWithFiles):
         mock_run_editor.assert_not_called()
         assert mock_stdout.getvalue() == ""
 
-    @mock.patch("run0edit_inner.handle_check_readonly")
+    @patch("run0edit_inner.handle_check_readonly")
     def test_declined_immutable(self, mock_check_ro, mock_run_editor, mock_stdout):
         """Should return early with expected message if user declines to edit immutable file"""
         mock_check_ro.side_effect = inner.ReadOnlyImmutableError
@@ -1017,11 +1239,11 @@ class TestRun(TestCaseWithFiles):
             == "run0edit: user declined to remove immutable attribute; exiting.\n"
         )
 
-    @mock.patch("run0edit_inner.copy_to_temp_file")
+    @patch("run0edit_inner.copy_to_temp_file")
     def test_copy_to_temp_fail(self, mock_copy_to_temp, mock_run_editor, mock_stdout):
         """Should print message and raise FileCopyError if copy to temp fails"""
         mock_copy_to_temp.side_effect = inner.FileCopyError
-        with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
             with pytest.raises(inner.FileCopyError):
                 inner.run(self.target_filename, self.temp_filename, "ed", uid_gid=(MY_UID, MY_GID))
             stderr = mock_stderr.getvalue().replace("-\n", "-").replace("\n", " ")
@@ -1030,7 +1252,7 @@ class TestRun(TestCaseWithFiles):
         assert re.search(r" failed to copy .* to temporary file ", stderr)
         assert mock_stdout.getvalue() == ""
 
-    @mock.patch("run0edit_inner.copy_to_temp_file")
+    @patch("run0edit_inner.copy_to_temp_file")
     def test_new_file_no_copy(self, mock_copy_to_temp, mock_run_editor, mock_stdout):
         """Should not try copying nonexistent file to temp file"""
         mock_run_editor.side_effect = Exception("mock run editor")
@@ -1048,6 +1270,28 @@ class TestRun(TestCaseWithFiles):
         with open(self.target_filename, "rb") as f:
             assert f.read() == text
         mock_run_editor.assert_called_once()
+        assert mock_stdout.getvalue() == ""
+
+    def test_editor_error(self, mock_run_editor, mock_stdout):
+        """Should print message and raise EditTempFileError if editor fails"""
+        mock_run_editor.side_effect = OSError
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            with pytest.raises(inner.EditTempFileError):
+                inner.run(self.target_filename, self.temp_filename, "ed", uid_gid=(MY_UID, MY_GID))
+            stderr = mock_stderr.getvalue()
+        mock_run_editor.assert_called_once()
+        assert "failed to edit temporary file" in stderr
+        assert mock_stdout.getvalue() == ""
+
+    def test_editor_terminal_error(self, mock_run_editor, mock_stdout):
+        """Should print message and raise EditTempFileError if setting up terminal fails"""
+        mock_run_editor.side_effect = termios.error
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            with pytest.raises(inner.EditTempFileError):
+                inner.run(self.target_filename, self.temp_filename, "ed", uid_gid=(MY_UID, MY_GID))
+            stderr = mock_stderr.getvalue()
+        mock_run_editor.assert_called_once()
+        assert "failed to set up terminal I/O" in stderr
         assert mock_stdout.getvalue() == ""
 
     def test_edit_unchanged(self, mock_run_editor, mock_stdout):
@@ -1077,11 +1321,11 @@ class TestRun(TestCaseWithFiles):
         assert "not created" in mock_stdout.getvalue()
 
 
-@mock.patch("sys.stderr", new_callable=io.StringIO)
+@patch("sys.stderr", new_callable=io.StringIO)
 class TestParseArgs(unittest.TestCase):
     """Tests for parse_args"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
+    ARGS = (sentinel.a0, sentinel.a1, sentinel.a2)
 
     def test_parse_args(self, mock_stderr):
         """Should return three provided arguments plus None"""
@@ -1130,7 +1374,7 @@ class TestRemoveTempFile(TestCaseWithFiles):
         assert os.path.exists(self.temp_dir)
         assert os.path.exists(self.temp_filename)
 
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    @patch("sys.stderr", new_callable=io.StringIO)
     def test_preserves_directory_if_unexpected_file(self, mock_stderr):
         """Should remove file but not directory if unexpected extra file is present"""
         unexpected_file = Path(self.temp_dir) / "unexpected"
@@ -1145,30 +1389,30 @@ class TestRemoveTempFile(TestCaseWithFiles):
         assert "run0edit: Warning: failed to remove temporary directory" in mock_stderr.getvalue()
 
 
-@mock.patch("run0edit_inner.remove_temp_file")
-@mock.patch("run0edit_inner.run")
-@mock.patch("os.environ", new={"SUDO_UID": MY_UID, "SUDO_GID": MY_GID})
+@patch("run0edit_inner.remove_temp_file")
+@patch("run0edit_inner.run")
+@patch("os.environ", new={"SUDO_UID": MY_UID, "SUDO_GID": MY_GID})
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
-    ARGS = (mock.sentinel.a0, mock.sentinel.a1, mock.sentinel.a2)
+    ARGS = (sentinel.a0, sentinel.a1, sentinel.a2)
 
-    @mock.patch("run0edit_inner.parse_args")
+    @patch("run0edit_inner.parse_args")
     def test_parses_args(self, mock_parse_args, mock_run, mock_rm_temp):
         """Should parse arguments using parse_args"""
         mock_parse_args.return_value = self.ARGS
-        inner.main(mock.sentinel.main_args)
-        mock_parse_args.assert_called_once_with(mock.sentinel.main_args)
+        inner.main(sentinel.main_args)
+        mock_parse_args.assert_called_once_with(sentinel.main_args)
         mock_run.assert_called_once_with(
             *self.ARGS, uid_gid=(MY_UID, MY_GID), prompt_immutable=True
         )
         mock_rm_temp.assert_called_once_with(self.ARGS[1], uid_gid=(MY_UID, MY_GID))
 
-    @mock.patch("run0edit_inner.parse_args")
+    @patch("run0edit_inner.parse_args")
     def test_invalid_args(self, mock_parse_args, mock_run, mock_rm_temp):
         """Should return 2 if parse_args raises InvalidArgumentsError"""
         mock_parse_args.side_effect = inner.InvalidArgumentsError
-        assert inner.main(mock.sentinel.main_args) == 2
+        assert inner.main(sentinel.main_args) == 2
         mock_run.assert_not_called()
         mock_rm_temp.assert_not_called()
 
@@ -1191,7 +1435,7 @@ class TestMain(unittest.TestCase):
             self.ARGS[1], uid_gid=(MY_UID, MY_GID), only_if_empty=True
         )
 
-    @mock.patch.dict("os.environ", {"RUN0EDIT_DEBUG": "1"})
+    @patch.dict("os.environ", {"RUN0EDIT_DEBUG": "1"})
     def test_failed_run_debug(self, mock_run, mock_rm_temp):
         """Should pass correct args to run and raise exception"""
         mock_run.side_effect = inner.Run0editError
