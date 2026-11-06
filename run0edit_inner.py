@@ -16,15 +16,20 @@ import errno
 import fcntl
 import hashlib
 import os
+import pty
 import pwd
+import re
 import resource
-import shutil
+import select
+import signal
 import stat
 import struct
-import subprocess  # nosec
 import sys
+import termios
 import textwrap
-from collections.abc import Sequence
+import traceback
+import tty
+from collections.abc import Callable, Sequence
 from typing import Final, assert_never
 
 
@@ -62,10 +67,6 @@ class EditTempFileError(Run0editError):
 
 class FileCopyError(Run0editError):
     """Failed to copy to the target file."""
-
-
-class SubprocessError(Run0editError):
-    """An external command failed."""
 
 
 class ChattrError(Run0editError):
@@ -171,28 +172,6 @@ def readonly_filesystem(file: str | int) -> bool | None:
         return bool(os.statvfs(file).f_flag & os.ST_RDONLY)
     except OSError:
         return None
-
-
-def find_command(command: str) -> str:
-    """Search for command using a default path."""
-    cmd_path = shutil.which(command, path="/usr/bin:/bin:/usr/sbin:/sbin")
-    if cmd_path is None:
-        raise CommandNotFoundError(command)
-    return cmd_path
-
-
-def run_command(cmd: str, *args: str, capture_output: bool = False) -> str | None:
-    """Run command as subprocess."""
-    run_args = [find_command(cmd), *args]
-    try:
-        result = subprocess.run(
-            run_args, check=True, shell=False, capture_output=capture_output, text=capture_output
-        )  # nosec
-    except subprocess.CalledProcessError as e:
-        raise SubprocessError from e
-    if capture_output:
-        return str(result.stdout)
-    return None
 
 
 def get_dir_fd(path: str, *, dir_fd: int | None = None) -> int:
@@ -510,22 +489,164 @@ def handle_copy_from_temp_file(
         print(f"run0edit: {original_path} {'unchanged' if original_file_exists else 'not created'}")
 
 
-def run_editor(*, uid: int, editor: str, path: str) -> None:
-    """Run the editor as the given UID to edit the file at the given path."""
-    user = pwd.getpwuid(uid).pw_name
+def editor_environment(uid: int) -> dict[str, str]:
+    """Build environment for editor process."""
+    pw = pwd.getpwuid(uid)
+    env = {
+        "HOME": pw.pw_dir or "/",
+        "LOGNAME": pw.pw_name,
+        "SHELL": pw.pw_shell or "/bin/sh",
+        "USER": pw.pw_name,
+    }
+
+    for key in ("COLORTERM", "LANG", "PWD", "TERM"):
+        if value := os.environ.get(key):
+            env[key] = value
+
+    env["PATH"] = "/usr/local/bin:/bin:/usr/bin"
+    # Read PATH from /etc/login.defs if it sets ENV_PATH
+    env_path_pattern = re.compile(r"\s*ENV_PATH\s+(?:PATH=)?(.*\S)\s*")
     try:
-        # We use a login shell here to ensure the unprivileged editor has the environment
-        # associated with a fresh shell session for that user.
-        run_command("runuser", "--pty", "-", user, "-c", 'exec "$0" "$1"', editor, path)
-    except CommandNotFoundError as e:
-        print_err("failed to call runuser to start editor")
-        raise EditTempFileError from e
-    except SubprocessError as e:
-        print_err(f"failed to edit temporary file at {path}")
-        raise EditTempFileError from e
+        with open("/etc/login.defs", encoding="utf8") as f:
+            for line in f:
+                if re_match := re.fullmatch(env_path_pattern, line):
+                    env["PATH"] = re_match.group(1)
+                    break
+    except OSError:
+        pass
+
+    return env
 
 
-def run(
+def set_child_signal_handlers(  # noqa: C901  # ignore cyclomatic complexity lint on this function
+    pid: int, pty_fd: int
+) -> dict[signal.Signals, Callable | signal.Handlers | int | None]:
+    """Forward signals to the PTY and its session leader process"""
+
+    def _forward_signal(sig, _frame):  # pragma: no cover
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            traceback.print_exception(e)
+            os._exit(os.EX_OSERR)
+
+    def _set_window_size(_sig, _frame):  # pragma: no cover
+        try:
+            cols, rows = os.get_terminal_size()
+            termios.tcsetwinsize(pty_fd, (rows, cols))
+        except OSError:
+            pass
+        except Exception as e:
+            traceback.print_exception(e)
+            os._exit(os.EX_OSERR)
+
+    saved_signal_handlers = {}
+    try:
+        for sig in signal.Signals:
+            match sig:
+                case signal.SIGWINCH:
+                    saved_signal_handlers[sig] = signal.signal(sig, _set_window_size)
+                case signal.SIGKILL | signal.SIGSTOP:
+                    pass
+                case _:
+                    saved_signal_handlers[sig] = signal.signal(sig, _forward_signal)
+    except OSError:
+        for sig, handler in saved_signal_handlers.items():
+            signal.signal(sig, handler)
+        raise
+
+    return saved_signal_handlers
+
+
+def copy_pty_io(pty_fd: int, stdin: int, stdout: int) -> None:
+    """Copy standard input to the PTY and standard output from the PTY."""
+    in_buf = b""
+    out_buf = b""
+    os.set_blocking(pty_fd, False)
+    while True:
+        ready_fds, _, _ = select.select([stdin, pty_fd], [], [])
+        if stdin in ready_fds:
+            in_buf += os.read(stdin, 1024)
+            bytes_written = os.write(pty_fd, in_buf)
+            in_buf = in_buf[bytes_written:]
+        if pty_fd in ready_fds:
+            try:
+                new_data = os.read(pty_fd, 1024)
+            except OSError:
+                new_data = b""
+            out_buf += new_data
+            bytes_written = os.write(stdout, out_buf)
+            if not new_data:
+                return
+            out_buf = out_buf[bytes_written:]
+
+
+# Definitions from Linux kernel in include/uapi/linux/prctl.h
+PR_SET_PDEATHSIG: Final[int] = 1
+PR_SET_NO_NEW_PRIVS: Final[int] = 38
+
+
+def exec_editor(
+    *, uid: int, gid: int, editor: str, path: str, env: dict[str, str], libc: ctypes.CDLL
+) -> None:
+    """Execute the editor (to be run in the child process)"""
+    os.seteuid(os.getuid())
+    os.setregid(gid, gid)
+    os.setgroups((gid,))
+    os.setreuid(uid, uid)
+    if libc.prctl(PR_SET_PDEATHSIG, signal.SIGHUP) < 0:
+        os._exit(os.EX_OSERR)
+    if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0:
+        os._exit(os.EX_OSERR)
+    os.execve(editor, [editor, path], env)
+
+
+def run_editor(*, uid_gid: tuple[int, int], editor: str, path: str) -> None:
+    """Run the editor as the given UID to edit the file at the given path."""
+    uid, gid = uid_gid
+    saved_term_attrs = None
+    saved_signal_handlers = {}
+    pty_fd = None
+    stdin = sys.stdin.fileno()
+    try:
+        os.setegid(gid)
+        os.seteuid(uid)
+
+        env = editor_environment(uid)
+        libc = ctypes.cdll.LoadLibrary("libc.so.6")
+        pid, pty_fd = pty.fork()
+        if pid == 0:
+            try:
+                exec_editor(uid=uid, gid=gid, editor=editor, path=path, env=env, libc=libc)
+            finally:
+                # If we fail to execute the editor for any reason, control flow
+                # must not continue and the child process must exit immediately.
+                os._exit(1)
+
+        saved_term_attrs = termios.tcgetattr(stdin)
+        tty.setraw(stdin)
+        tty.setraw(pty_fd)
+        saved_signal_handlers = set_child_signal_handlers(pid, pty_fd)
+        signal.raise_signal(signal.SIGWINCH)
+        copy_pty_io(pty_fd, stdin, sys.stdout.fileno())
+
+        _, status = os.waitpid(pid, 0)
+        if os.waitstatus_to_exitcode(status) != 0:
+            raise EditTempFileError
+    finally:
+        if pty_fd is not None:
+            os.close(pty_fd)
+        if saved_term_attrs is not None:
+            termios.tcsetattr(stdin, termios.TCSAFLUSH, saved_term_attrs)
+        for sig, handler in saved_signal_handlers.items():
+            signal.signal(sig, handler)
+        os.seteuid(os.getuid())
+        os.setegid(os.getgid())
+
+
+def run(  # noqa: C901  # ignore cyclomatic complexity lint on this function
     original_file: str,
     temp_file: str,
     editor: str,
@@ -568,8 +689,14 @@ def run(
             raise
 
     # Attempt to edit the temp file as the original user.
-    uid, _ = uid_gid
-    run_editor(uid=uid, editor=editor, path=temp_file)
+    try:
+        run_editor(uid_gid=uid_gid, editor=editor, path=temp_file)
+    except (EditTempFileError, OSError) as e:
+        print_err(f"failed to edit temporary file at {temp_file}")
+        raise EditTempFileError from e
+    except termios.error as e:
+        print_err("failed to set up terminal I/O")
+        raise EditTempFileError from e
 
     handle_copy_from_temp_file(
         temp_file=temp_file,

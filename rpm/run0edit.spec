@@ -17,7 +17,6 @@ BuildRequires:  pandoc
 BuildRequires:  python3-devel >= 3.11
 Requires:       python3 >= 3.11
 Requires:       systemd >= 256
-Requires:       util-linux
 Recommends:     e2fsprogs
 
 %description

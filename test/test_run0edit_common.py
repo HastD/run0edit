@@ -10,11 +10,8 @@ Unit tests for functions duplicated between run0edit_main.py and run0edit_inner.
 
 import io
 import os
-import shutil
 import unittest
 from unittest import mock
-
-import pytest
 
 import run0edit_inner
 import run0edit_main
@@ -69,29 +66,3 @@ class TestReadonlyFilesystem(unittest.TestCase):
         """Should return None for nonexistent path"""
         for mod in (run0edit_inner, run0edit_main):
             assert mod.readonly_filesystem("/this/path/does/not/exist") is None
-
-
-class TestFindCommand(unittest.TestCase):
-    """Tests for find_command"""
-
-    def test_finds_cmds(self):
-        """Should find external commands used by module"""
-        for mod in (run0edit_inner, run0edit_main):
-            assert mod.find_command("chattr") == "/usr/bin/chattr"
-            assert mod.find_command("lsattr") == "/usr/bin/lsattr"
-            if shutil.which("run0"):  # pragma: no cover
-                assert mod.find_command("run0") == "/usr/bin/run0"
-
-    def test_nonexistent_cmd(self):
-        """Should not find nonexistent command"""
-        for mod in (run0edit_inner, run0edit_main):
-            with pytest.raises(mod.CommandNotFoundError, match="this_cmd_does_not_exist"):
-                mod.find_command("this_cmd_does_not_exist")
-
-    def test_check_args(self):
-        """Should pass correct arguments to shutil.which"""
-        cmd = mock.sentinel.cmd
-        for mod in (run0edit_inner, run0edit_main):
-            with mock.patch("shutil.which") as mock_which:
-                mod.find_command(cmd)
-                mock_which.assert_called_once_with(cmd, path="/usr/bin:/bin:/usr/sbin:/sbin")

@@ -18,9 +18,9 @@ def new_test_file(
     contents: bytes = b"", *, directory: str | None = None, mode: int | None = None
 ) -> str:
     """Make a temporary file with the given contents."""
-    path = tempfile.mkstemp(prefix=TEMP_FILE_PREFIX, dir=directory)[1]
+    fd, path = tempfile.mkstemp(prefix=TEMP_FILE_PREFIX, dir=directory)
     if contents:
-        with open(path, "wb") as f:
+        with os.fdopen(fd, "wb") as f:
             f.write(contents)
     if mode is not None:
         os.chmod(path, mode)

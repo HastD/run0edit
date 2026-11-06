@@ -4,12 +4,11 @@
 
 fs = import('fs')
 fs.copyfile('integration_tests.py')
-fs.copyfile('mock-editor.sh')
 
 if get_option('integration-tests').enabled()
     test(
         'integration-test',
         find_program('uv'),
-        args: ['run', 'pytest', 'integration-test/integration_tests.py'],
+        args: ['run', 'pytest', '-v', 'integration-test/integration_tests.py'],
     )
 endif

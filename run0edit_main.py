@@ -26,7 +26,7 @@ from typing import Final
 
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
-INNER_SCRIPT_B2: Final[str] = "71937416d0a0c5d758fa7b5a70fb131273fc505dbd02927ccf9e86443a62735f"
+INNER_SCRIPT_B2: Final[str] = "fc5aac6d09300c71c6548eb71963146e56d5231508ff472b976b4f70145a7638"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 CAPABILITY_BOUNDING_SET: Final[list[str]] = [
@@ -36,8 +36,6 @@ CAPABILITY_BOUNDING_SET: Final[list[str]] = [
     "CAP_LINUX_IMMUTABLE",
     "CAP_SETGID",
     "CAP_SETUID",
-    "CAP_SYS_NICE",
-    "CAP_SYS_RESOURCE",
 ]
 
 SYSTEM_CALL_DENY: Final[list[str]] = [
@@ -331,7 +329,7 @@ def build_run0_arguments(
 ) -> Run0Arguments:
     """Construct the arguments to be passed to run0."""
     python_cmd = find_command("python3")
-    extra_options = []
+    extra_options = ["--setenv=LANG"]
     python_args = [INNER_SCRIPT_PATH, path, temp_path, editor]
     if bgcolor is not None:
         extra_options.append(f"--background={bgcolor}")
