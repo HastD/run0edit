@@ -6,9 +6,9 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
-## [Unreleased]
+## [v0.7.1]
 
-- Add run0edit-specific editor environment variable `RUN0EDIT_EDITOR`.
+- Support run0edit-specific editor environment variable `RUN0EDIT_EDITOR`.
   ([#126](https://github.com/HastD/run0edit/pull/126))
 - Drop privileges for the editor directly in Python rather than via the external
   binary `runuser`. This includes setting user and group IDs, dropping
@@ -269,7 +269,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.7.0...HEAD
+[v0.7.1]: https://github.com/HastD/run0edit/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/HastD/run0edit/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/HastD/run0edit/compare/v0.5.10...v0.6.0

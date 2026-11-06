@@ -4,11 +4,12 @@
 
 [project]
 name = "run0edit"
-version = "0.7.0"
+version = "0.7.1"
 requires-python = ">= 3.11"
 authors = [
     {name = "Daniel Hast"},
     {name = "RoyalOughtness"},
+    {name = "Skye Soss"},
     {name = "zefr0x"},
 ]
 maintainers = [{name = "Daniel Hast"}]
