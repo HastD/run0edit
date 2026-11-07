@@ -437,32 +437,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--no-prompt", action="store_true", help="skip confirmation prompts")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("paths", nargs="+", metavar="FILE", help="path to the file to be edited")
+    parser.add_argument("path", metavar="FILE", help="path to the file to be edited")
     return parser.parse_args()
-
-
-class UsageError(Exception):
-    """Incorrect usage of run0edit command."""
-
-
-def catch_usage_mistake(paths: list[str], *, prompt: bool = True) -> None:
-    """
-    Check if the user has likely made a usage mistake by passing an executable as the
-    first argument.
-    """
-    if not prompt or len(paths) <= 1:
-        return
-    arg = paths[0]
-    if os.sep in arg or shutil.which(arg) is None:
-        return
-    print_err(f"""
-        Warning: `{arg}` looks like an executable command. If you intended to run {arg}
-        as a text editor, use the --editor option or (to make it the default) write its
-        absolute path to {DEFAULT_CONF_PATH}.
-    """)
-    response = input(f"\nDo you really want to edit the file ./{arg}? [y/N] ")
-    if not response.casefold().startswith("y"):
-        raise UsageError
 
 
 def main() -> int:
@@ -475,26 +451,18 @@ def main() -> int:
         """)
         return 1
     try:
-        catch_usage_mistake(args.paths, prompt=not args.no_prompt)
-    except UsageError:
-        return 2
-    try:
         editor = handle_editor_selection(provided_editor=args.editor)
     except EditorSelectionError:
         return 1
-    exit_code = 0
-    for path in args.paths:
-        try:
-            exit_code = run(
-                path, editor, bgcolor=args.background, debug=args.debug, no_prompt=args.no_prompt
-            )
-        except CommandNotFoundError as e:
-            print_err(f"command `{e.args[0]}` not found")
-            if args.debug:
-                raise e
-            return 1
-        if exit_code != 0:
-            break
+    try:
+        exit_code = run(
+            args.path, editor, bgcolor=args.background, debug=args.debug, no_prompt=args.no_prompt
+        )
+    except CommandNotFoundError as e:
+        print_err(f"command `{e.args[0]}` not found")
+        if args.debug:
+            raise e
+        return 1
     return exit_code
 
 
