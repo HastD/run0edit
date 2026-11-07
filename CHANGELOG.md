@@ -6,6 +6,12 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
+## [Unreleased]
+
+- Only accept a single path. (The functionality to accept multiple paths and
+  edit each file in succession was obscure and had been broken for some time.)
+  ([#130](https://github.com/HastD/run0edit/pull/130))
+
 ## [v0.7.1]
 
 - Support run0edit-specific editor environment variable `RUN0EDIT_EDITOR`.
@@ -269,6 +275,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
+[Unreleased]: https://github.com/HastD/run0edit/compare/v0.7.1...HEAD
 [v0.7.1]: https://github.com/HastD/run0edit/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/HastD/run0edit/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1

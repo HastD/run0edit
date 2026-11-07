@@ -18,7 +18,7 @@ run0edit - edit a file as root
 
 # SYNOPSIS
 
-run0edit [--editor EDITOR] [--background COLOR] [--no-prompt] FILE [FILES...]
+run0edit [--editor EDITOR] [--background COLOR] [--no-prompt] FILE
 
 # DESCRIPTION
 

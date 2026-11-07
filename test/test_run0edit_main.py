@@ -15,7 +15,7 @@ import shutil
 import unittest
 from collections.abc import Callable, Sequence
 from typing import Any
-from unittest import mock
+from unittest.mock import ANY, call, patch, sentinel
 
 import pytest
 
@@ -65,24 +65,24 @@ class TestGlobalConstants(unittest.TestCase):
 class TestValidateInnerScript(unittest.TestCase):
     """Tests for validate_inner_script"""
 
-    @mock.patch("run0edit_main.open", create=True)
+    @patch("run0edit_main.open", create=True)
     def test_check_args(self, mock_open):
         """Should read from expected path"""
         with pytest.raises(TypeError, match="object supporting the buffer API required"):
             run0edit.validate_inner_script()
         mock_open.assert_called_once_with(run0edit.INNER_SCRIPT_PATH, "rb")
 
-    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_inner.py")
+    @patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_inner.py")
     def test_valid_inner_script(self):
         """Should return True when computing hash of inner script file"""
         assert run0edit.validate_inner_script()
 
-    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_main.py")
+    @patch("run0edit_main.INNER_SCRIPT_PATH", "run0edit_main.py")
     def test_invalid_inner_script(self):
         """Should return False if pointed to a file with wrong contents"""
         assert not run0edit.validate_inner_script()
 
-    @mock.patch("run0edit_main.INNER_SCRIPT_PATH", "/no/such/file/exists")
+    @patch("run0edit_main.INNER_SCRIPT_PATH", "/no/such/file/exists")
     def test_missing_inner_script(self):
         """Should return False if pointed to a file that doesn't exist"""
         assert not run0edit.validate_inner_script()
@@ -105,8 +105,8 @@ class TestFindCommand(unittest.TestCase):
 
     def test_check_args(self):
         """Should pass correct arguments to shutil.which"""
-        cmd = mock.sentinel.cmd
-        with mock.patch("shutil.which") as mock_which:
+        cmd = sentinel.cmd
+        with patch("shutil.which") as mock_which:
             run0edit.find_command(cmd)
             mock_which.assert_called_once_with(cmd, path="/usr/bin:/bin:/usr/sbin:/sbin")
 
@@ -141,21 +141,21 @@ class TestIsValidExecutable(unittest.TestCase):
 class TestGetEditorPathFromConf(unittest.TestCase):
     """Tests for get_editor_path_from_conf"""
 
-    @mock.patch("run0edit_main.open", create=True)
+    @patch("run0edit_main.open", create=True)
     def test_default_conf_path(self, mock_open):
         """Should check expected default configuration path"""
         mock_open.side_effect = Exception("mock open")
         with pytest.raises(Exception, match="mock open"):
             run0edit.get_editor_path_from_conf()
-        mock_open.assert_called_once_with(run0edit.DEFAULT_CONF_PATH, encoding=mock.ANY)
+        mock_open.assert_called_once_with(run0edit.DEFAULT_CONF_PATH, encoding=ANY)
 
-    @mock.patch("run0edit_main.open", create=True)
+    @patch("run0edit_main.open", create=True)
     def test_provided_conf_path(self, mock_open):
         """Should check provided configuration path"""
         mock_open.side_effect = Exception("mock open")
         with pytest.raises(Exception, match="mock open"):
             run0edit.get_editor_path_from_conf("/some/other/path.conf")
-        mock_open.assert_called_once_with("/some/other/path.conf", encoding=mock.ANY)
+        mock_open.assert_called_once_with("/some/other/path.conf", encoding=ANY)
 
     def test_read_conf_path_valid(self):
         """Should read and validate editor path from conf file"""
@@ -196,7 +196,7 @@ class TestGetEditorPathFromConf(unittest.TestCase):
         remove_test_file(conf)
         assert run0edit.get_editor_path_from_conf(conf) is None
 
-    @mock.patch("run0edit_main.open", create=True)
+    @patch("run0edit_main.open", create=True)
     def test_unreadable_conf_file(self, mock_open):
         """Should raise error if conf file exists but is unreadable"""
         mock_open.side_effect = PermissionError
@@ -204,8 +204,8 @@ class TestGetEditorPathFromConf(unittest.TestCase):
             run0edit.get_editor_path_from_conf()
 
 
-@mock.patch.dict("os.environ", {}, clear=True)
-@mock.patch("shutil.which")
+@patch.dict("os.environ", {}, clear=True)
+@patch("shutil.which")
 class TestGetEditorPathFromEnv(unittest.TestCase):
     """Tests for get_editor_path_from_env"""
 
@@ -214,63 +214,63 @@ class TestGetEditorPathFromEnv(unittest.TestCase):
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_not_called()
 
-    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor"})
+    @patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor"})
     def test_run0edit_editor_valid(self, mock_which):
         """Should return valid editor found in RUN0EDIT_EDITOR"""
         mock_which.side_effect = lambda s: s
         assert run0edit.get_editor_path_from_env() == "/run0edit-editor"
         mock_which.assert_called_once_with("/run0edit-editor")
 
-    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "relative-editor"})
+    @patch.dict("os.environ", {"RUN0EDIT_EDITOR": "relative-editor"})
     def test_relative_run0edit_editor_valid(self, mock_which):
         """Should return valid relative editor found in RUN0EDIT_EDITOR"""
         mock_which.side_effect = lambda s: f"/usr/bin/{s}"
         assert run0edit.get_editor_path_from_env() == "/usr/bin/relative-editor"
         mock_which.assert_called_once_with("relative-editor")
 
-    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/invalid"})
+    @patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/invalid"})
     def test_run0edit_editor_invalid(self, mock_which):
         """Should not return invalid editor found in RUN0EDIT_EDITOR"""
         mock_which.return_value = None
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_called_once_with("/invalid")
 
-    @mock.patch.dict("os.environ", {"VISUAL": "/visual-editor"})
+    @patch.dict("os.environ", {"VISUAL": "/visual-editor"})
     def test_visual_valid(self, mock_which):
         """Should return valid editor found in VISUAL"""
         mock_which.side_effect = lambda s: s
         assert run0edit.get_editor_path_from_env() == "/visual-editor"
         mock_which.assert_called_once_with("/visual-editor")
 
-    @mock.patch.dict("os.environ", {"VISUAL": "relative-editor"})
+    @patch.dict("os.environ", {"VISUAL": "relative-editor"})
     def test_relative_visual_valid(self, mock_which):
         """Should return valid relative editor found in VISUAL"""
         mock_which.side_effect = lambda s: f"/usr/bin/{s}"
         assert run0edit.get_editor_path_from_env() == "/usr/bin/relative-editor"
         mock_which.assert_called_once_with("relative-editor")
 
-    @mock.patch.dict("os.environ", {"VISUAL": "/invalid"})
+    @patch.dict("os.environ", {"VISUAL": "/invalid"})
     def test_visual_invalid(self, mock_which):
         """Should not return invalid editor found in VISUAL"""
         mock_which.return_value = None
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_called_once_with("/invalid")
 
-    @mock.patch.dict("os.environ", {"EDITOR": "/editor"})
+    @patch.dict("os.environ", {"EDITOR": "/editor"})
     def test_editor_valid(self, mock_which):
         """Should return valid editor found in EDITOR"""
         mock_which.side_effect = lambda s: s
         assert run0edit.get_editor_path_from_env() == "/editor"
         mock_which.assert_called_once_with("/editor")
 
-    @mock.patch.dict("os.environ", {"EDITOR": "/invalid"})
+    @patch.dict("os.environ", {"EDITOR": "/invalid"})
     def test_editor_invalid(self, mock_which):
         """Should not return invalid editor found in EDITOR"""
         mock_which.return_value = None
         assert run0edit.get_editor_path_from_env() is None
         mock_which.assert_called_once_with("/invalid")
 
-    @mock.patch.dict(
+    @patch.dict(
         "os.environ",
         {"RUN0EDIT_EDITOR": "/run0edit-editor", "VISUAL": "/visual", "EDITOR": "/editor"},
     )
@@ -280,32 +280,32 @@ class TestGetEditorPathFromEnv(unittest.TestCase):
         assert run0edit.get_editor_path_from_env() == "/run0edit-editor"
         mock_which.assert_called_once_with("/run0edit-editor")
 
-    @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
+    @patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
     def test_visual_preferred_over_editor(self, mock_which):
         """Should prefer editor in VISUAL over editor in EDITOR"""
         mock_which.side_effect = lambda s: s
         assert run0edit.get_editor_path_from_env() == "/visual"
         mock_which.assert_called_once_with("/visual")
 
-    @mock.patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor", "VISUAL": "/editor"})
+    @patch.dict("os.environ", {"RUN0EDIT_EDITOR": "/run0edit-editor", "VISUAL": "/editor"})
     def test_valid_visual_invalid_run0edit_editor(self, mock_which):
         """Should fall back to editor in VISUAL if editor in RUN0EDIT_EDITOR is invalid"""
         mock_which.side_effect = [None, "/editor"]
         assert run0edit.get_editor_path_from_env() == "/editor"
-        assert mock_which.call_args_list == [mock.call("/run0edit-editor"), mock.call("/editor")]
+        assert mock_which.call_args_list == [call("/run0edit-editor"), call("/editor")]
 
-    @mock.patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
+    @patch.dict("os.environ", {"VISUAL": "/visual", "EDITOR": "/editor"})
     def test_valid_editor_invalid_visual(self, mock_which):
         """Should fall back to editor in EDITOR if editor in VISUAL is invalid"""
         mock_which.side_effect = [None, "/editor"]
         assert run0edit.get_editor_path_from_env() == "/editor"
-        assert mock_which.call_args_list == [mock.call("/visual"), mock.call("/editor")]
+        assert mock_which.call_args_list == [call("/visual"), call("/editor")]
 
 
 class TestGetFallbackEditorPath(unittest.TestCase):
     """Tests for get_fallback_editor_path"""
 
-    @mock.patch("run0edit_main.find_command")
+    @patch("run0edit_main.find_command")
     def test_default_fallbacks(self, mock_find_cmd):
         """
         Should try to find expected default fallback editors, and return None if none found
@@ -313,7 +313,7 @@ class TestGetFallbackEditorPath(unittest.TestCase):
         mock_find_cmd.side_effect = run0edit.CommandNotFoundError
         assert run0edit.get_fallback_editor_path() is None
         expected = ("nano", "vi")
-        assert mock_find_cmd.call_args_list == [mock.call(cmd) for cmd in expected]
+        assert mock_find_cmd.call_args_list == [call(cmd) for cmd in expected]
 
     def test_provided_fallbacks(self):
         """Should return first fallback editor that is a valid command"""
@@ -322,9 +322,9 @@ class TestGetFallbackEditorPath(unittest.TestCase):
         assert editor in ("/bin/true", "/usr/bin/true")
 
 
-@mock.patch("run0edit_main.get_fallback_editor_path")
-@mock.patch("run0edit_main.get_editor_path_from_env")
-@mock.patch("run0edit_main.get_editor_path_from_conf")
+@patch("run0edit_main.get_fallback_editor_path")
+@patch("run0edit_main.get_editor_path_from_env")
+@patch("run0edit_main.get_editor_path_from_conf")
 class TestGetEditorPath(unittest.TestCase):
     """Tests for get_editor_path"""
 
@@ -346,7 +346,7 @@ class TestGetEditorPath(unittest.TestCase):
 
     def test_gets_from_conf_if_not_provided(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should get editor from environment if not provided"""
-        editor = mock.sentinel.editor_from_conf
+        editor = sentinel.editor_from_conf
         mock_from_conf.return_value = editor
         assert run0edit.get_editor_path() == editor
         mock_from_conf.assert_called_once_with()
@@ -355,7 +355,7 @@ class TestGetEditorPath(unittest.TestCase):
 
     def test_gets_from_env_if_not_from_conf(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should get editor from environment if not provided or found in conf file"""
-        editor = mock.sentinel.editor_from_env
+        editor = sentinel.editor_from_env
         mock_from_conf.return_value = None
         mock_from_env.return_value = editor
         assert run0edit.get_editor_path() == editor
@@ -365,7 +365,7 @@ class TestGetEditorPath(unittest.TestCase):
 
     def test_gets_fallback_if_no_conf(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should get editor from conf file if not provided"""
-        editor = mock.sentinel.fallback_editor
+        editor = sentinel.fallback_editor
         mock_from_conf.return_value = None
         mock_from_env.return_value = None
         mock_fallback.return_value = editor
@@ -386,19 +386,19 @@ class TestGetEditorPath(unittest.TestCase):
         mock_fallback.assert_called_once_with()
 
 
-@mock.patch("run0edit_main.get_editor_path")
+@patch("run0edit_main.get_editor_path")
 class TestHandleEditorSelection(unittest.TestCase):
     """Tests for handle_editor_selection"""
 
     def test_check_args(self, mock_get_editor):
         """Should pass argument to get_editor_path and return its return value"""
-        mock_get_editor.return_value = mock.sentinel.editor_path
-        provided = mock.sentinel.provided
+        mock_get_editor.return_value = sentinel.editor_path
+        provided = sentinel.provided
         editor = run0edit.handle_editor_selection(provided_editor=provided)
-        assert editor == mock.sentinel.editor_path
+        assert editor == sentinel.editor_path
         mock_get_editor.assert_called_once_with(provided_editor=provided)
 
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    @patch("sys.stderr", new_callable=io.StringIO)
     def test_handle_errors(self, mock_stderr, mock_get_editor):
         """Should print expected messages in response to errors"""
         error_patterns: dict[type[run0edit.EditorSelectionError], str] = {
@@ -561,8 +561,8 @@ class TestTempFile(unittest.TestCase):
         self.non_empty_file.remove(only_if_empty=True)
         assert os.path.exists(self.non_empty_file.path)
 
-    @mock.patch("os.rmdir")
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    @patch("os.rmdir")
+    @patch("sys.stderr", new_callable=io.StringIO)
     def test_remove_fail(self, mock_stderr, mock_rmdir):
         """Should report error message if removing temp dir fails"""
         mock_rmdir.side_effect = OSError("mock rmdir error")
@@ -571,7 +571,7 @@ class TestTempFile(unittest.TestCase):
         assert not os.path.exists(self.empty_file.path)
 
 
-@mock.patch("run0edit_main.find_command")
+@patch("run0edit_main.find_command")
 class TestRun0Arguments(unittest.TestCase):
     """Tests for Run0Arguments class"""
 
@@ -599,7 +599,7 @@ class TestRun0Arguments(unittest.TestCase):
         mock_find_cmd.assert_called_once_with("run0")
 
 
-@mock.patch("run0edit_main.find_command")
+@patch("run0edit_main.find_command")
 class TestBuildRun0Arguments(unittest.TestCase):
     """Tests for build_run0_arguments"""
 
@@ -698,7 +698,7 @@ class TestValidatePath(unittest.TestCase):
         ):
             run0edit.validate_path(self.path)
 
-    @mock.patch("run0edit_main.readonly_filesystem")
+    @patch("run0edit_main.readonly_filesystem")
     def test_readonly(self, mock_ro_fs):
         """Should fail if path is on read-only filesystem"""
         mock_ro_fs.return_value = True
@@ -708,7 +708,7 @@ class TestValidatePath(unittest.TestCase):
             run0edit.validate_path(self.path)
         mock_ro_fs.assert_called_once_with(self.path)
 
-    @mock.patch("run0edit_main.readonly_filesystem")
+    @patch("run0edit_main.readonly_filesystem")
     def test_readonly_directory(self, mock_ro_fs):
         """Should fail if directory is on read-only filesystem"""
         mock_ro_fs.side_effect = [None, True]
@@ -717,8 +717,8 @@ class TestValidatePath(unittest.TestCase):
         ):
             run0edit.validate_path(self.path)
         assert mock_ro_fs.call_args_list == [
-            mock.call(self.path),
-            mock.call(os.path.dirname(self.path)),
+            call(self.path),
+            call(os.path.dirname(self.path)),
         ]
 
     def test_path_does_not_exist(self):
@@ -731,8 +731,8 @@ class TestValidatePath(unittest.TestCase):
         run0edit.validate_path(self.path)
 
 
-@mock.patch("os.execv")
-@mock.patch("run0edit_main.find_command", lambda cmd: f"/usr/bin/{cmd}")
+@patch("os.execv")
+@patch("run0edit_main.find_command", lambda cmd: f"/usr/bin/{cmd}")
 class TestRun(unittest.TestCase):
     """Tests for run"""
 
@@ -744,7 +744,7 @@ class TestRun(unittest.TestCase):
         """Remove test file"""
         remove_test_file(self.path)
 
-    @mock.patch("run0edit_main.validate_path")
+    @patch("run0edit_main.validate_path")
     def test_validates_path_succeeded(self, mock_validate, mock_execv):
         """Should validate path and continue if valid"""
         mock_validate.return_value = None
@@ -752,8 +752,8 @@ class TestRun(unittest.TestCase):
         mock_validate.assert_called_once_with(self.path)
         mock_execv.assert_called_once()
 
-    @mock.patch("run0edit_main.print_err")
-    @mock.patch("run0edit_main.validate_path")
+    @patch("run0edit_main.print_err")
+    @patch("run0edit_main.validate_path")
     def test_path_validation_failed(self, mock_validate, mock_print_err, mock_execv):
         """Should validate path and exit with an error message if not valid"""
         mock_validate.side_effect = run0edit.InvalidPathError("some error message")
@@ -766,7 +766,7 @@ class TestRun(unittest.TestCase):
         """Should pass expected arguments to os.execv"""
         editor = "/usr/sbin/butterfly"
         run0edit.run(self.path, editor)
-        mock_execv.assert_called_once_with("/usr/bin/run0", mock.ANY)
+        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
         args = mock_execv.call_args.args[1]
         temp_filename = args[-2]
         expected_args = run0edit.build_run0_arguments(self.path, temp_filename, editor)
@@ -779,23 +779,23 @@ class TestRun(unittest.TestCase):
             f.write(os.environ["MOCK_TEXT"])
         return int(os.environ["MOCK_RETCODE"])
 
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    @patch("sys.stderr", new_callable=io.StringIO)
     def test_run_success(self, mock_stderr, mock_execv):
         """Should clean up temp file and return 0 if execv succeeds"""
         mock_execv.side_effect = self.mock_editor_process
-        with mock.patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "0"}):
+        with patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "0"}):
             assert run0edit.run(self.path, "...") == 0
-        mock_execv.assert_called_once_with("/usr/bin/run0", mock.ANY)
+        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
         temp_filename = mock_execv.call_args.args[1][-2]
         assert not os.path.exists(temp_filename)
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.stderr", new_callable=io.StringIO)
+    @patch("sys.stderr", new_callable=io.StringIO)
     def test_execv_fail(self, mock_stderr, mock_execv):
         """Should return 1 and clean empty tempfile if execv fails"""
         mock_execv.side_effect = OSError("mock execv error")
         assert run0edit.run(self.path, "...") == 1
-        mock_execv.assert_called_once_with("/usr/bin/run0", mock.ANY)
+        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
         temp_filename = mock_execv.call_args.args[0][-2]
         assert not os.path.exists(temp_filename)
         assert mock_stderr.getvalue() == "run0edit: Warning: execution of run0 failed\n"
@@ -831,17 +831,17 @@ class TestAnsiColor(unittest.TestCase):
                 run0edit.ansi_color(value)
 
 
-@mock.patch("sys.stderr", new_callable=io.StringIO)
-@mock.patch("sys.stdout", new_callable=io.StringIO)
+@patch("sys.stderr", new_callable=io.StringIO)
+@patch("sys.stdout", new_callable=io.StringIO)
 class TestParseArguments(unittest.TestCase):
     """Tests for parse_arguments"""
 
     USAGE_TEXT: str = """
-    usage: run0edit [-h] [-v] [--editor EDITOR] [--background COLOR] [--no-prompt] FILE [FILE ...]
+    usage: run0edit [-h] [-v] [--editor EDITOR] [--background COLOR] [--no-prompt] FILE
     """.strip()
     DESCRIPTION: str = "run0edit allows a permitted user to edit a file as root."
 
-    @mock.patch("sys.argv", [])
+    @patch("sys.argv", [])
     def test_no_args(self, mock_stdout, mock_stderr):
         """Should show usage and exit with code 2 if no arguments passed"""
         with pytest.raises(SystemExit, match="2"):
@@ -851,7 +851,7 @@ class TestParseArguments(unittest.TestCase):
         error_text = "run0edit: error: the following arguments are required: FILE"
         assert msg == f"{self.USAGE_TEXT} {error_text}"
 
-    @mock.patch("sys.argv", ["run0edit", "--help"])
+    @patch("sys.argv", ["run0edit", "--help"])
     def test_help(self, mock_stdout, mock_stderr):
         """Should show usage and exit normally if called with -h or --help"""
         with pytest.raises(SystemExit, match="0"):
@@ -861,7 +861,7 @@ class TestParseArguments(unittest.TestCase):
         mock_stdout.truncate(0)
         mock_stdout.seek(0)
         with (
-            mock.patch("sys.argv", ["run0edit", "-h"]),
+            patch("sys.argv", ["run0edit", "-h"]),
             pytest.raises(SystemExit, match="0"),
         ):
             run0edit.main()
@@ -869,7 +869,7 @@ class TestParseArguments(unittest.TestCase):
         assert short_help_text == help_text
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--version"])
+    @patch("sys.argv", ["run0edit", "--version"])
     def test_version(self, mock_stdout, mock_stderr):
         """Should show version and exit normally if called with -v or --version"""
         with pytest.raises(SystemExit, match="0"):
@@ -879,14 +879,14 @@ class TestParseArguments(unittest.TestCase):
         mock_stdout.truncate(0)
         mock_stdout.seek(0)
         with (
-            mock.patch("sys.argv", ["run0edit", "-v"]),
+            patch("sys.argv", ["run0edit", "-v"]),
             pytest.raises(SystemExit, match="0"),
         ):
             run0edit.main()
         assert mock_stdout.getvalue() == expected_version_text
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--editor=/path/to/editor", "foo"])
+    @patch("sys.argv", ["run0edit", "--editor=/path/to/editor", "foo"])
     def test_editor(self, mock_stdout, mock_stderr):
         """Should accept and store --editor argument"""
         args = run0edit.parse_arguments()
@@ -896,7 +896,7 @@ class TestParseArguments(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--background=1;2;3", "foo"])
+    @patch("sys.argv", ["run0edit", "--background=1;2;3", "foo"])
     def test_background(self, mock_stdout, mock_stderr):
         """Should accept and store --editor argument"""
         args = run0edit.parse_arguments()
@@ -906,7 +906,7 @@ class TestParseArguments(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--background=", "foo"])
+    @patch("sys.argv", ["run0edit", "--background=", "foo"])
     def test_empty_background(self, mock_stdout, mock_stderr):
         """Should accept and store --editor argument"""
         args = run0edit.parse_arguments()
@@ -916,7 +916,7 @@ class TestParseArguments(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--background=bad", "foo"])
+    @patch("sys.argv", ["run0edit", "--background=bad", "foo"])
     def test_invalid_background(self, mock_stdout, mock_stderr):
         """Should accept and store --editor argument"""
         with pytest.raises(SystemExit, match="2"):
@@ -924,7 +924,7 @@ class TestParseArguments(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert "argument --background: invalid ansi_color value: 'bad'" in mock_stderr.getvalue()
 
-    @mock.patch("sys.argv", ["run0edit", "--debug", "foo"])
+    @patch("sys.argv", ["run0edit", "--debug", "foo"])
     def test_debug(self, mock_stdout, mock_stderr):
         """Should recognize --debug argument"""
         args = run0edit.parse_arguments()
@@ -933,87 +933,23 @@ class TestParseArguments(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "foo", "bar", "baz"])
-    def test_multiple_paths(self, mock_stdout, mock_stderr):
-        """Should accept multiple paths"""
-        args = run0edit.parse_arguments()
-        assert args.paths == ["foo", "bar", "baz"]
-        assert args.editor is None
-        assert not args.debug
+    @patch("sys.argv", ["run0edit", "foo", "bar", "baz"])
+    def test_multiple_paths_rejected(self, mock_stdout, mock_stderr):
+        """Should not accept multiple paths"""
+        with pytest.raises(SystemExit, match="2"):
+            run0edit.parse_arguments()
         assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
+        assert "error: unrecognized arguments" in mock_stderr.getvalue()
 
 
-@mock.patch("sys.stderr", new_callable=io.StringIO)
-@mock.patch("sys.stdout", new_callable=io.StringIO)
-class TestCatchUsageMistake(unittest.TestCase):
-    """Tests for catch_usage_mistake"""
-
-    FIRST_PATH: str = "sh"
-
-    def test_no_prompt(self, mock_stdout, mock_stderr):
-        """Should do nothing with prompt=False"""
-        run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=False)
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
-
-    def test_one_path(self, mock_stdout, mock_stderr):
-        """Should do nothing if only one path"""
-        run0edit.catch_usage_mistake([self.FIRST_PATH], prompt=True)
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
-
-    def test_path_sep_in_first_path(self, mock_stdout, mock_stderr):
-        """Should do nothing if path separator in first path"""
-        run0edit.catch_usage_mistake([f"./{self.FIRST_PATH}", "asdf"], prompt=True)
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
-
-    def test_first_path_not_command(self, mock_stdout, mock_stderr):
-        """Should do nothing if first path does not resolve to command"""
-        run0edit.catch_usage_mistake(["thisisnotacommand", "asdf"], prompt=True)
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
-
-    @mock.patch("run0edit_main.input", create=True)
-    def test_first_path_is_command_response_yes(self, mock_input, mock_stdout, mock_stderr):
-        """
-        Should print warning message and prompt for user input, returning normally if
-        user response is "yes"
-        """
-        mock_input.return_value = "yes"
-        run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=True)
-        mock_input.assert_called_once_with(
-            f"\nDo you really want to edit the file ./{self.FIRST_PATH}? [y/N] "
-        )
-        assert mock_stdout.getvalue() == ""
-        assert (
-            f"Warning: `{self.FIRST_PATH}` looks like an executable command. "
-            in mock_stderr.getvalue()
-        )
-
-    @mock.patch("run0edit_main.input", create=True)
-    def test_first_path_is_command_response_no(self, mock_input, mock_stdout, mock_stderr):
-        """Should raise expected exception if user gives empty/negative response"""
-        mock_input.return_value = ""
-        with pytest.raises(run0edit.UsageError):
-            run0edit.catch_usage_mistake([self.FIRST_PATH, "asdf"], prompt=True)
-        mock_input.assert_called_once()
-        assert mock_stdout.getvalue() == ""
-        assert (
-            f"Warning: `{self.FIRST_PATH}` looks like an executable command. "
-            in mock_stderr.getvalue()
-        )
-
-
-@mock.patch.dict("os.environ", {}, clear=True)
-@mock.patch("sys.stderr", new_callable=io.StringIO)
-@mock.patch("sys.stdout", new_callable=io.StringIO)
-@mock.patch("run0edit_main.run")
+@patch.dict("os.environ", {}, clear=True)
+@patch("sys.stderr", new_callable=io.StringIO)
+@patch("sys.stdout", new_callable=io.StringIO)
+@patch("run0edit_main.run")
 class TestMain(unittest.TestCase):
     """Tests for main"""
 
-    @mock.patch("run0edit_main.parse_arguments")
+    @patch("run0edit_main.parse_arguments")
     def test_parses_arguments(self, mock_parse_args, mock_run, mock_stdout, mock_stderr):
         """Should call parse_arguments"""
         mock_parse_args.side_effect = Exception("mock parse_arguments")
@@ -1024,8 +960,8 @@ class TestMain(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--editor=/bin/true", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script")
+    @patch("sys.argv", ["run0edit", "--editor=/bin/true", "asdf"])
+    @patch("run0edit_main.validate_inner_script")
     def test_valid_inner_script(self, mock_validate, mock_run, mock_stdout, mock_stderr):
         """Should continue to rest of function if validate_inner_script succeeds"""
         mock_validate.return_value = True
@@ -1035,8 +971,8 @@ class TestMain(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script")
+    @patch("sys.argv", ["run0edit", "asdf"])
+    @patch("run0edit_main.validate_inner_script")
     def test_invalid_inner_script(self, mock_validate, mock_run, mock_stdout, mock_stderr):
         """Should fail with expected error if validate_inner_script fails"""
         mock_validate.return_value = False
@@ -1049,22 +985,10 @@ class TestMain(unittest.TestCase):
             mock_stderr.getvalue().replace("\n", " "),
         )
 
-    @mock.patch("sys.argv", ["run0edit", "nano", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.catch_usage_mistake")
-    def test_catches_usage_mistake(self, mock_catch_usage, mock_run, mock_stdout, mock_stderr):
-        """Should return 2 if usage error reported"""
-        mock_catch_usage.side_effect = run0edit.UsageError
-        assert run0edit.main() == 2
-        mock_catch_usage.assert_called_once_with(["nano", "asdf"], prompt=True)
-        mock_run.assert_not_called()
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
-
-    @mock.patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
-    @mock.patch("shutil.which")
+    @patch("sys.argv", ["run0edit", "--editor=/usr/bin/butterfly", "asdf"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
+    @patch("shutil.which")
     def test_valid_editor(self, mock_which, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should use valid editor passed as command-line argument"""
         mock_which.side_effect = lambda s: s
@@ -1075,10 +999,10 @@ class TestMain(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--editor=/etc/hosts", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
-    @mock.patch("shutil.which")
+    @patch("sys.argv", ["run0edit", "--editor=/etc/hosts", "asdf"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
+    @patch("shutil.which")
     def test_invalid_editor(self, mock_which, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should fail if invalid editor passed as command-line argument"""
         mock_which.return_value = None
@@ -1092,9 +1016,9 @@ class TestMain(unittest.TestCase):
             == "run0edit: --editor must be an absolute path to an executable file\n"
         )
 
-    @mock.patch("sys.argv", ["run0edit", "asdf"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "asdf"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_editor_not_found(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should fail with expected message if unable to find editor"""
         mock_editor_path.side_effect = run0edit.EditorNotFoundError
@@ -1103,56 +1027,54 @@ class TestMain(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue().startswith("run0edit: Editor not found.")
 
-    @mock.patch("sys.argv", ["run0edit", "path1", "path2"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "/some/path"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_successful_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should pass expected arguments to run and exit successfully"""
         editor = "/usr/bin/vim"
         mock_editor_path.return_value = editor
         mock_run.return_value = 0
         assert run0edit.main() == 0
-        paths = ("path1", "path2")
-        assert mock_run.call_args_list == [
-            mock.call(path, editor, bgcolor=None, debug=False, no_prompt=False) for path in paths
-        ]
+        mock_run.assert_called_once_with(
+            "/some/path", editor, bgcolor=None, debug=False, no_prompt=False
+        )
         mock_editor_path.assert_called_once()
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "--background=1;2;3", "path1", "path2"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "--background=1;2;3", "path"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_run_with_bgcolor(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should pass bgcolor argument to run and exit successfully"""
         editor = "/usr/bin/vim"
         mock_editor_path.return_value = editor
         mock_run.return_value = 0
         assert run0edit.main() == 0
-        paths = ("path1", "path2")
-        assert mock_run.call_args_list == [
-            mock.call(path, editor, bgcolor="1;2;3", debug=False, no_prompt=False) for path in paths
-        ]
+        mock_run.assert_called_once_with(
+            "path", editor, bgcolor="1;2;3", debug=False, no_prompt=False
+        )
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "path1", "path2", "path3"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "path"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_failed_run(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return as soon as a run returns nonzero"""
         editor = "/usr/bin/vim"
         mock_editor_path.return_value = editor
-        mock_run.side_effect = [0, 42, 0]
+        mock_run.return_value = 42
         assert run0edit.main() == 42
-        assert mock_run.call_count == 2
-        assert mock_run.call_args.args == ("path2", editor)
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args == ("path", editor)
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == ""
 
-    @mock.patch("sys.argv", ["run0edit", "example/path"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "example/path"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_missing_command(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """Should return 1 if command missing"""
         editor = "/usr/bin/vim"
@@ -1164,9 +1086,9 @@ class TestMain(unittest.TestCase):
         assert mock_stdout.getvalue() == ""
         assert mock_stderr.getvalue() == "run0edit: command `foo` not found\n"
 
-    @mock.patch("sys.argv", ["run0edit", "--debug", "example/path"])
-    @mock.patch("run0edit_main.validate_inner_script", lambda: True)
-    @mock.patch("run0edit_main.get_editor_path_from_conf")
+    @patch("sys.argv", ["run0edit", "--debug", "example/path"])
+    @patch("run0edit_main.validate_inner_script", lambda: True)
+    @patch("run0edit_main.get_editor_path_from_conf")
     def test_missing_command_debug(self, mock_editor_path, mock_run, mock_stdout, mock_stderr):
         """
         In debug mode, should pass debug argument to `run`, and raise expected
