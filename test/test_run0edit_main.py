@@ -388,7 +388,9 @@ class TestGetEditorPath(unittest.TestCase):
     def test_valid_provided_path(self, mock_from_conf, mock_from_env, mock_fallback):
         """Should return provided editor via PATH, not ./editor"""
         editor = run0edit.get_editor_path("true")
-        assert editor == os.path.realpath(shutil.which("true"))
+        editor_path_from_path = shutil.which("true")
+        assert editor_path_from_path is not None
+        assert editor == os.path.realpath(editor_path_from_path)
         mock_from_conf.assert_not_called()
         mock_from_env.assert_not_called()
         mock_fallback.assert_not_called()
