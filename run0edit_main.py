@@ -183,7 +183,7 @@ def get_editor_path(provided_editor: str | None = None) -> str:
         editor_path = shutil.which(provided_editor)
         if editor_path is None:
             raise InvalidProvidedEditorError(provided_editor)
-        return os.path.realpath(provided_editor)
+        return os.path.realpath(editor_path)
     editor = get_editor_path_from_conf()
     if editor is not None:
         return editor
