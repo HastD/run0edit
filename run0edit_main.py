@@ -26,7 +26,7 @@ from typing import Final
 
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
-INNER_SCRIPT_B2: Final[str] = "fc5aac6d09300c71c6548eb71963146e56d5231508ff472b976b4f70145a7638"
+INNER_SCRIPT_B2: Final[str] = "8d0535558c884195e14f01124b556f8920c65aae275fb5e3c142bbe0d467772a"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 CAPABILITY_BOUNDING_SET: Final[list[str]] = [
