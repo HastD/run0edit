@@ -347,7 +347,7 @@ def cmp_fd_contents(fd1: int, fd2: int, *, bufsize: int = 4096) -> bool:
     """
     st1 = os.fstat(fd1)
     st2 = os.fstat(fd2)
-    if st1.st_ino == st2.st_ino:
+    if os.path.samestat(st1, st2):
         return True
     if st1.st_size != st2.st_size:
         return False
