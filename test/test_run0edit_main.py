@@ -683,6 +683,38 @@ class TestBuildRun0Arguments(unittest.TestCase):
         assert "--setenv=RUN0EDIT_NO_PROMPT=1" in args_debug.argument_list()
 
 
+@patch("run0edit_main.input", create=True)
+@patch("sys.stdout", new_callable=io.StringIO)
+class TestConfirmResolvedPath(unittest.TestCase):
+    """Tests for confirm_resolved_path"""
+
+    def test_prompt_text(self, m_stdout, m_input):
+        """Test confirmation prompt text"""
+        m_input.return_value = ""
+        orig_path = "/path/with/symlink"
+        resolved_path = "/the/resolved/path"
+        assert not run0edit.confirm_resolved_path(orig_path, resolved_path)
+        assert m_stdout.getvalue().strip().splitlines() == [
+            f"{orig_path} includes a symbolic link.",
+            f"The resolved path is: {resolved_path}",
+        ]
+        m_input.assert_called_once_with("Proceed with editing a file at this path? [y/N] ")
+
+    def test_yes_answers(self, _, m_input):
+        """Test affirmative answers"""
+        answers = ["y", "Y", "yes", "YES"]
+        m_input.side_effect = answers
+        for _ in answers:
+            assert run0edit.confirm_resolved_path("orig", "resolved")
+
+    def test_no_answers(self, _, m_input):
+        """Test negative answers"""
+        answers = ["n", "", "ye", ".yes", "N", "YNO", "yyes", "nyan"]
+        m_input.side_effect = answers
+        for _ in answers:
+            assert not run0edit.confirm_resolved_path("orig", "resolved")
+
+
 class TestValidatePath(unittest.TestCase):
     """Tests for validate_path"""
 
@@ -755,60 +787,98 @@ class TestRun(unittest.TestCase):
         remove_test_file(self.path)
 
     @patch("run0edit_main.validate_path")
-    def test_validates_path_succeeded(self, mock_validate, mock_execv):
-        """Should validate path and continue if valid"""
-        mock_validate.return_value = None
+    @patch("run0edit_main.confirm_resolved_path")
+    @patch("sys.stdout", new_callable=io.StringIO)
+    def test_relative_path_no_prompt(self, m_stdout, m_confirm, m_validate, m_execv):
+        """Should not prompt for relative path without symlinks"""
+        run0edit.run(os.path.relpath(self.path), "...")
+        m_confirm.assert_not_called()
+        m_validate.assert_called_once_with(self.path)
+        m_execv.assert_called_once()
+        assert m_stdout.getvalue() == ""
+
+    @patch("run0edit_main.confirm_resolved_path")
+    @patch("os.path.realpath")
+    @patch("sys.stdout", new_callable=io.StringIO)
+    def test_cancel_edit_symlink(self, m_stdout, m_realpath, m_confirm, m_execv):
+        """Should cancel editing if user declines to edit path with symlink"""
+        m_confirm.return_value = False
+        m_realpath.return_value = sentinel.real_path
+        assert run0edit.run(self.path, "...") == 0
+        m_confirm.assert_called_once_with(self.path, sentinel.real_path)
+        m_execv.assert_not_called()
+        assert m_stdout.getvalue().strip() == "Cancelled editing."
+
+    @patch("run0edit_main.validate_path")
+    @patch("run0edit_main.confirm_resolved_path")
+    @patch("os.path.realpath")
+    @patch("sys.stdout", new_callable=io.StringIO)
+    def test_accept_edit_symlink(self, m_stdout, m_realpath, m_confirm, m_validate, m_execv):
+        """Should continue editing if user confirms editing path with symlink"""
+        m_confirm.return_value = True
+        resolved_path = "/resolved/path/to/file"
+        m_realpath.return_value = resolved_path
         run0edit.run(self.path, "...")
-        mock_validate.assert_called_once_with(self.path)
-        mock_execv.assert_called_once()
+        m_confirm.assert_called_once_with(self.path, resolved_path)
+        m_validate.assert_called_once_with(resolved_path)
+        m_execv.assert_called_once()
+        assert m_stdout.getvalue() == ""
+
+    @patch("run0edit_main.validate_path")
+    def test_validates_path_succeeded(self, m_validate, m_execv):
+        """Should validate path and continue if valid"""
+        m_validate.return_value = None
+        run0edit.run(self.path, "...")
+        m_validate.assert_called_once_with(self.path)
+        m_execv.assert_called_once()
 
     @patch("run0edit_main.print_err")
     @patch("run0edit_main.validate_path")
-    def test_path_validation_failed(self, mock_validate, mock_print_err, mock_execv):
+    def test_path_validation_failed(self, m_validate, m_print_err, m_execv):
         """Should validate path and exit with an error message if not valid"""
-        mock_validate.side_effect = run0edit.InvalidPathError("some error message")
+        m_validate.side_effect = run0edit.InvalidPathError("some error message")
         assert run0edit.run(self.path, "...") == 1
-        mock_validate.assert_called_once_with(self.path)
-        mock_print_err.assert_called_once_with("some error message")
-        mock_execv.assert_not_called()
+        m_validate.assert_called_once_with(self.path)
+        m_print_err.assert_called_once_with("some error message")
+        m_execv.assert_not_called()
 
-    def test_check_args(self, mock_execv):
+    def test_check_args(self, m_execv):
         """Should pass expected arguments to os.execv"""
         editor = "/usr/sbin/butterfly"
         run0edit.run(self.path, editor)
-        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
-        args = mock_execv.call_args.args[1]
+        m_execv.assert_called_once_with("/usr/bin/run0", ANY)
+        args = m_execv.call_args.args[1]
         temp_filename = args[-2]
         expected_args = run0edit.build_run0_arguments(self.path, temp_filename, editor)
         assert args == expected_args.argument_list()
 
     @staticmethod
-    def mock_editor_process(_path: str, args: Sequence[str], **_: Any) -> int:
+    def m_editor_process(_path: str, args: Sequence[str], **_: Any) -> int:
         """Mock os.execv that writes text to temp file"""
         with open(args[-2], "w", encoding="utf8") as f:
             f.write(os.environ["MOCK_TEXT"])
         return int(os.environ["MOCK_RETCODE"])
 
     @patch("sys.stderr", new_callable=io.StringIO)
-    def test_run_success(self, mock_stderr, mock_execv):
+    def test_run_success(self, m_stderr, m_execv):
         """Should clean up temp file and return 0 if execv succeeds"""
-        mock_execv.side_effect = self.mock_editor_process
+        m_execv.side_effect = self.m_editor_process
         with patch.dict("os.environ", {"MOCK_TEXT": "foo", "MOCK_RETCODE": "0"}):
             assert run0edit.run(self.path, "...") == 0
-        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
-        temp_filename = mock_execv.call_args.args[1][-2]
+        m_execv.assert_called_once_with("/usr/bin/run0", ANY)
+        temp_filename = m_execv.call_args.args[1][-2]
         assert not os.path.exists(temp_filename)
-        assert mock_stderr.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
     @patch("sys.stderr", new_callable=io.StringIO)
-    def test_execv_fail(self, mock_stderr, mock_execv):
+    def test_execv_fail(self, m_stderr, m_execv):
         """Should return 1 and clean empty tempfile if execv fails"""
-        mock_execv.side_effect = OSError("mock execv error")
+        m_execv.side_effect = OSError("mock execv error")
         assert run0edit.run(self.path, "...") == 1
-        mock_execv.assert_called_once_with("/usr/bin/run0", ANY)
-        temp_filename = mock_execv.call_args.args[0][-2]
+        m_execv.assert_called_once_with("/usr/bin/run0", ANY)
+        temp_filename = m_execv.call_args.args[0][-2]
         assert not os.path.exists(temp_filename)
-        assert mock_stderr.getvalue() == "run0edit: Warning: execution of run0 failed\n"
+        assert m_stderr.getvalue() == "run0edit: Warning: execution of run0 failed\n"
 
 
 class TestAnsiColor(unittest.TestCase):
@@ -851,105 +921,133 @@ class TestParseArguments(unittest.TestCase):
     """.strip()
     DESCRIPTION: str = "run0edit allows a permitted user to edit a file as root."
 
-    @patch("sys.argv", [])
-    def test_no_args(self, mock_stdout, mock_stderr):
+    def test_no_args(self, m_stdout, m_stderr):
         """Should show usage and exit with code 2 if no arguments passed"""
         with pytest.raises(SystemExit, match="2"):
-            run0edit.parse_arguments()
-        assert mock_stdout.getvalue() == ""
-        msg = re.sub(r"\s+", " ", mock_stderr.getvalue().strip())
+            run0edit.parse_arguments([])
+        assert m_stdout.getvalue() == ""
+        msg = re.sub(r"\s+", " ", m_stderr.getvalue().strip())
         error_text = "run0edit: error: the following arguments are required: FILE"
         assert msg == f"{self.USAGE_TEXT} {error_text}"
 
     @patch("sys.argv", ["run0edit", "--help"])
-    def test_help(self, mock_stdout, mock_stderr):
+    def test_help(self, m_stdout, m_stderr):
         """Should show usage and exit normally if called with -h or --help"""
         with pytest.raises(SystemExit, match="0"):
             run0edit.main()
-        help_text = re.sub(r"\s+", " ", mock_stdout.getvalue().strip())
+        help_text = re.sub(r"\s+", " ", m_stdout.getvalue().strip())
         assert help_text.startswith(f"{self.USAGE_TEXT} {self.DESCRIPTION}")
-        mock_stdout.truncate(0)
-        mock_stdout.seek(0)
+        m_stdout.truncate(0)
+        m_stdout.seek(0)
         with (
             patch("sys.argv", ["run0edit", "-h"]),
             pytest.raises(SystemExit, match="0"),
         ):
             run0edit.main()
-        short_help_text = re.sub(r"\s+", " ", mock_stdout.getvalue().strip())
+        short_help_text = re.sub(r"\s+", " ", m_stdout.getvalue().strip())
         assert short_help_text == help_text
-        assert mock_stderr.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "--version"])
-    def test_version(self, mock_stdout, mock_stderr):
+    def test_version(self, m_stdout, m_stderr):
         """Should show version and exit normally if called with -v or --version"""
         with pytest.raises(SystemExit, match="0"):
-            run0edit.parse_arguments()
+            run0edit.parse_arguments(["run0edit", "--version"])
         expected_version_text = f"run0edit {run0edit.__version__}\n"
-        assert mock_stdout.getvalue() == expected_version_text
-        mock_stdout.truncate(0)
-        mock_stdout.seek(0)
-        with (
-            patch("sys.argv", ["run0edit", "-v"]),
-            pytest.raises(SystemExit, match="0"),
-        ):
-            run0edit.main()
-        assert mock_stdout.getvalue() == expected_version_text
-        assert mock_stderr.getvalue() == ""
+        assert m_stdout.getvalue() == expected_version_text
+        m_stdout.truncate(0)
+        m_stdout.seek(0)
+        with pytest.raises(SystemExit, match="0"):
+            run0edit.parse_arguments(["-v"])
+        assert m_stdout.getvalue() == expected_version_text
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "--editor=/path/to/editor", "foo"])
-    def test_editor(self, mock_stdout, mock_stderr):
+    def test_editor(self, m_stdout, m_stderr):
         """Should accept and store --editor argument"""
-        args = run0edit.parse_arguments()
+        args = run0edit.parse_arguments(["--editor=/path/to/editor", "foo"])
         assert args.editor == "/path/to/editor"
         assert args.background is None
         assert not args.debug
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "--background=1;2;3", "foo"])
-    def test_background(self, mock_stdout, mock_stderr):
-        """Should accept and store --editor argument"""
-        args = run0edit.parse_arguments()
+    def test_background(self, m_stdout, m_stderr):
+        """Should accept and store valid ANSI color as --background argument"""
+        args = run0edit.parse_arguments(["--background=1;2;3", "foo"])
         assert args.editor is None
         assert args.background == "1;2;3"
         assert not args.debug
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "--background=", "foo"])
-    def test_empty_background(self, mock_stdout, mock_stderr):
-        """Should accept and store --editor argument"""
-        args = run0edit.parse_arguments()
+    def test_empty_background(self, m_stdout, m_stderr):
+        """Should accept and store empty --background argument"""
+        args = run0edit.parse_arguments(["--background=", "foo"])
         assert args.editor is None
         assert args.background == ""
         assert not args.debug
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "--background=bad", "foo"])
-    def test_invalid_background(self, mock_stdout, mock_stderr):
-        """Should accept and store --editor argument"""
+    def test_invalid_background(self, m_stdout, m_stderr):
+        """Should reject invalid --background argument"""
         with pytest.raises(SystemExit, match="2"):
-            run0edit.parse_arguments()
-        assert mock_stdout.getvalue() == ""
-        assert "argument --background: invalid ansi_color value: 'bad'" in mock_stderr.getvalue()
+            run0edit.parse_arguments(["--background=bad", "foo"])
+        assert m_stdout.getvalue() == ""
+        assert "argument --background: invalid ansi_color value: 'bad'" in m_stderr.getvalue()
 
-    @patch("sys.argv", ["run0edit", "--debug", "foo"])
-    def test_debug(self, mock_stdout, mock_stderr):
+    @patch.dict(os.environ, {"RUN0EDIT_BACKGROUND": "1;2;3"})
+    def test_background_env_valid(self, m_stdout, m_stderr):
+        """Should accept valid background from env var"""
+        args = run0edit.parse_arguments(["foo"])
+        assert args.background == "1;2;3"
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
+
+    @patch.dict(os.environ, {"RUN0EDIT_BACKGROUND": "invalid"})
+    def test_background_env_invalid(self, m_stdout, m_stderr):
+        """Should accept valid background from env var"""
+        args = run0edit.parse_arguments(["foo"])
+        assert args.background is None
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
+
+    def test_arg_no_prompt(self, m_stdout, m_stderr):
+        """Should enable --no-prompt if env var set"""
+        args = run0edit.parse_arguments(["--no-prompt", "foo"])
+        assert args.no_prompt
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
+
+    @patch.dict(os.environ, {"RUN0EDIT_NO_PROMPT": "1"})
+    def test_env_no_prompt(self, m_stdout, m_stderr):
+        """Should enable --no-prompt if env var set"""
+        args = run0edit.parse_arguments(["foo"])
+        assert args.no_prompt
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
+
+    def test_debug(self, m_stdout, m_stderr):
         """Should recognize --debug argument"""
-        args = run0edit.parse_arguments()
+        args = run0edit.parse_arguments(["--debug", "foo"])
         assert args.editor is None
         assert args.debug
-        assert mock_stdout.getvalue() == ""
-        assert mock_stderr.getvalue() == ""
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
 
-    @patch("sys.argv", ["run0edit", "foo", "bar", "baz"])
-    def test_multiple_paths_rejected(self, mock_stdout, mock_stderr):
+    @patch.dict(os.environ, {"RUN0EDIT_DEBUG": "1"})
+    def test_env_debug(self, m_stdout, m_stderr):
+        """Should enable --debug if env var set"""
+        args = run0edit.parse_arguments(["foo"])
+        assert args.debug
+        assert m_stdout.getvalue() == ""
+        assert m_stderr.getvalue() == ""
+
+    def test_multiple_paths_rejected(self, m_stdout, m_stderr):
         """Should not accept multiple paths"""
         with pytest.raises(SystemExit, match="2"):
-            run0edit.parse_arguments()
-        assert mock_stdout.getvalue() == ""
-        assert "error: unrecognized arguments" in mock_stderr.getvalue()
+            run0edit.parse_arguments(["foo", "bar", "baz"])
+        assert m_stdout.getvalue() == ""
+        assert "error: unrecognized arguments" in m_stderr.getvalue()
 
 
 @patch.dict("os.environ", {}, clear=True)

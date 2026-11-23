@@ -207,8 +207,56 @@ class TestGetDirFd(TestCaseWithFiles):
         """Can open file using dir_fd"""
         dir_fd = inner.get_dir_fd(self.target_dir)
         fd = os.open(os.path.basename(self.target_filename), flags=self.read_flags, dir_fd=dir_fd)
-        inode = os.fstat(fd).st_ino
-        assert inode == os.fstat(self.target_fd).st_ino
+        assert os.path.sameopenfile(fd, self.target_fd)
+
+
+class TestGetDirFdNoSymlinks(TestCaseWithFiles):
+    """Tests for get_dir_fd_no_symlinks"""
+
+    @patch("run0edit_inner.get_dir_fd")
+    def test_non_abs_rejected(self, m_dirfd):
+        """Should reject non-absolute path"""
+        with pytest.raises(inner.NoDirectoryError, match="not an absolute path"):
+            inner.get_dir_fd_no_symlinks("./foo")
+        m_dirfd.assert_not_called()
+
+    def test_open_root_dir(self):
+        """Can open root directory"""
+        fd = inner.get_dir_fd_no_symlinks("/")
+        assert os.path.samefile(fd, "/")
+
+    def test_open_target_dir(self):
+        """Can open target directory"""
+        fd = inner.get_dir_fd_no_symlinks(self.target_dir)
+        assert os.path.sameopenfile(fd, self.target_dir_fd)
+
+    def test_reject_not_found(self):
+        """Should reject missing directory"""
+        with pytest.raises(inner.NoDirectoryError, match="does not exist"):
+            inner.get_dir_fd_no_symlinks(self.new_filename)
+
+    def test_reject_regular_file(self):
+        """Should reject regular file"""
+        with pytest.raises(inner.NoDirectoryError, match="is not a directory"):
+            inner.get_dir_fd_no_symlinks(self.target_filename)
+
+    def test_reject_final_symlink(self):
+        """Should reject symbolic link at end"""
+        base_dir = Path(self.target_dir)
+        os.mkdir(base_dir / "foo")
+        os.symlink(base_dir / "foo", base_dir / "foo-link")
+        assert (base_dir / "foo-link").is_dir()
+        with pytest.raises(inner.NoDirectoryError, match="is not a directory"):
+            inner.get_dir_fd_no_symlinks(base_dir / "foo-link")
+
+    def test_reject_middle_symlink(self):
+        """Should reject symbolic link in middle"""
+        base_dir = Path(self.target_dir)
+        os.makedirs(base_dir / "foo" / "bar")
+        os.symlink(base_dir / "foo", base_dir / "foo-link")
+        assert (base_dir / "foo-link" / "bar").is_dir()
+        with pytest.raises(inner.NoDirectoryError, match="is not a directory"):
+            inner.get_dir_fd_no_symlinks(base_dir / "foo-link" / "bar")
 
 
 class TestGetFdForOriginal(TestCaseWithFiles):
@@ -217,7 +265,7 @@ class TestGetFdForOriginal(TestCaseWithFiles):
     def test_regular_file(self):
         """Should return (file fd, True) for regular file"""
         fd, exists = inner.get_fd_for_original(self.target_filename)
-        assert os.fstat(fd).st_ino == os.fstat(self.target_fd).st_ino
+        assert os.path.sameopenfile(fd, self.target_fd)
         assert exists
 
     def test_directory(self):
@@ -250,7 +298,7 @@ class TestGetFdForOriginal(TestCaseWithFiles):
         """Should return (dir fd, false) if file does not exist and parent is directory"""
         file = f"{self.target_dir}/foo.txt"
         fd, exists = inner.get_fd_for_original(file)
-        assert os.fstat(fd).st_ino == os.fstat(self.target_dir_fd).st_ino
+        assert os.path.sameopenfile(fd, self.target_dir_fd)
         assert not exists
 
     def test_no_directory(self):
@@ -429,13 +477,13 @@ class TestReopenFd(TestCaseWithFiles):
     def test_reopen_write_only(self):
         """Should reopen fd write-only"""
         fd = self.target_fd
-        inode = os.fstat(fd).st_ino
+        fd_stat = os.fstat(fd)
         # fd starts out unable to write
         with pytest.raises(OSError):
             os.write(fd, b"test")
         new_fd = inner.reopen_fd(fd, os.O_CLOEXEC | os.O_WRONLY | os.O_TRUNC)
         assert new_fd == fd
-        assert os.fstat(new_fd).st_ino == inode
+        assert os.path.samestat(fd_stat, os.fstat(new_fd))
         # fd can write now
         byte_count = os.write(fd, b"test")
         assert byte_count == len(b"test")
@@ -1148,10 +1196,8 @@ class TestRun(TestCaseWithFiles):
     @patch("run0edit_inner.copy_to_temp_file")
     @patch("run0edit_inner.handle_check_readonly")
     @patch("run0edit_inner.get_fd_for_original")
-    @patch("os.path.realpath")
     def test_check_args(
         self,
-        m_realpath,
         m_get_fd,
         m_check_ro,
         m_copy_to_temp,
@@ -1161,13 +1207,11 @@ class TestRun(TestCaseWithFiles):
     ):
         """Should pass correct arguments to functions"""
         s = sentinel
-        m_realpath.return_value = s.realpath
         m_get_fd.return_value = (s.fd_orig, True)
         m_check_ro.return_value = s.immutable
         inner.run(s.filename, s.temp_filename, s.editor, uid_gid=(s.uid, s.gid))
-        m_realpath.assert_called_once_with(s.filename)
-        m_get_fd.assert_called_once_with(s.realpath)
-        m_check_ro.assert_called_once_with(s.fd_orig, s.realpath, prompt_immutable=True)
+        m_get_fd.assert_called_once_with(s.filename)
+        m_check_ro.assert_called_once_with(s.fd_orig, s.filename, prompt_immutable=True)
         m_copy_to_temp.assert_called_once_with(
             original_fd=s.fd_orig, temp_file=s.temp_filename, uid_gid=(s.uid, s.gid)
         )
@@ -1177,7 +1221,7 @@ class TestRun(TestCaseWithFiles):
         m_copy_from_temp.assert_called_once_with(
             temp_file=s.temp_filename,
             original_fd=s.fd_orig,
-            original_path=s.realpath,
+            original_path=s.filename,
             uid_gid=(s.uid, s.gid),
             original_file_exists=True,
             immutable=s.immutable,

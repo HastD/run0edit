@@ -26,7 +26,7 @@ from typing import Final
 
 __version__: Final[str] = "@VERSION@"
 INNER_SCRIPT_PATH: Final[str] = "@LIBEXECDIR@/run0edit/run0edit_inner.py"
-INNER_SCRIPT_B2: Final[str] = "8d0535558c884195e14f01124b556f8920c65aae275fb5e3c142bbe0d467772a"
+INNER_SCRIPT_B2: Final[str] = "31f05cb9b00dcf1dbe4342ca0085b1ce114828a262b9715758e913181d248406"
 DEFAULT_CONF_PATH: Final[str] = "@SYSCONFDIR@/run0edit/editor.conf"
 
 CAPABILITY_BOUNDING_SET: Final[list[str]] = [
@@ -365,6 +365,14 @@ class InvalidPathError(Exception):
         return str(self.args[0] if self.args else "invalid path")
 
 
+def confirm_resolved_path(original_path, resolved_path) -> bool:
+    """Prompt the user for whether to edit a resolved path."""
+    print(f"{original_path} includes a symbolic link.")
+    print(f"The resolved path is: {resolved_path}")
+    response = input("Proceed with editing a file at this path? [y/N] ").casefold()
+    return response in ("y", "yes")
+
+
 def validate_path(path: str) -> None:
     """Raise an InvalidPathError if path is invalid and we should return early."""
     if os.path.isdir(path):
@@ -390,15 +398,19 @@ def run(
     no_prompt: bool = False,
 ) -> int:
     """Main program to run for a given file."""
-    path = os.path.realpath(path)
+    abs_path = os.path.abspath(path)
+    real_path = os.path.realpath(path)
+    if abs_path != real_path and not no_prompt and not confirm_resolved_path(path, real_path):
+        print("Cancelled editing.")
+        return 0
     try:
-        validate_path(path)
+        validate_path(real_path)
     except InvalidPathError as e:
         print_err(e.reason)
         return 1
-    temp_file = TempFile(path)
+    temp_file = TempFile(real_path)
     run0_args = build_run0_arguments(
-        path, temp_file.path, editor, bgcolor=bgcolor, debug=debug, no_prompt=no_prompt
+        real_path, temp_file.path, editor, bgcolor=bgcolor, debug=debug, no_prompt=no_prompt
     )
     argv = run0_args.argument_list()
     try:
@@ -419,7 +431,7 @@ def ansi_color(color: str) -> str:
     return color
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(input_args: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments using argparse."""
     description = "run0edit allows a permitted user to edit a file as root."
     epilog = f"""\
@@ -438,7 +450,21 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--no-prompt", action="store_true", help="skip confirmation prompts")
     parser.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("path", metavar="FILE", help="path to the file to be edited")
-    return parser.parse_args()
+
+    args = parser.parse_args(args=input_args)
+    if args.background is None:
+        bgcolor_env = os.environ.get("RUN0EDIT_BACKGROUND")
+        if bgcolor_env is not None:
+            try:
+                args.background = ansi_color(bgcolor_env)
+            except ValueError:
+                pass
+    if not args.debug:
+        args.debug = bool(os.environ.get("RUN0EDIT_DEBUG"))
+    if not args.no_prompt:
+        args.no_prompt = bool(os.environ.get("RUN0EDIT_NO_PROMPT"))
+
+    return args
 
 
 def main() -> int:

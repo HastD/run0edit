@@ -30,6 +30,7 @@ import textwrap
 import traceback
 import tty
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Final, assert_never
 
 
@@ -174,9 +175,29 @@ def readonly_filesystem(file: str | int) -> bool | None:
         return None
 
 
-def get_dir_fd(path: str, *, dir_fd: int | None = None) -> int:
+def get_dir_fd(path: str | Path, *, dir_fd: int | None = None) -> int:
     """Open dir_fd for directory, optionally with a parent dir_fd."""
     return os.open(path, os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_RDONLY, dir_fd=dir_fd)
+
+
+def get_dir_fd_no_symlinks(path: str | Path) -> int:
+    """
+    Open a dir_fd for a path, raising NoDirectoryError if the path is not a
+    fully resolved absolute path to a directory.
+    """
+    if not os.path.isabs(path):
+        raise NoDirectoryError(f"{path} is not an absolute path")
+    directory = Path("/")
+    dir_fd = get_dir_fd(directory)
+    for dir_name in Path(path).parts[1:]:
+        directory = directory / dir_name
+        try:
+            dir_fd = get_dir_fd(dir_name, dir_fd=dir_fd)
+        except FileNotFoundError as e:
+            raise NoDirectoryError(f"{directory} does not exist") from e
+        except NotADirectoryError as e:
+            raise NoDirectoryError(f"{directory} is not a directory") from e
+    return dir_fd
 
 
 def get_fd_for_original(path: str) -> tuple[int, bool]:
@@ -186,15 +207,10 @@ def get_fd_for_original(path: str) -> tuple[int, bool]:
     the file descriptor and a boolean indicating whether the file exists.
 
     Raises an exception if the path points to a non-regular file or if the
-    parent of the path is not a directory.
+    parent of the path is not a fully resolved absolute path to a directory.
     """
     directory, filename = os.path.split(path)
-    try:
-        dir_fd = get_dir_fd(directory)
-    except FileNotFoundError as e:
-        raise NoDirectoryError(f"{directory} does not exist") from e
-    except NotADirectoryError as e:
-        raise NoDirectoryError(f"{directory} is not a directory") from e
+    dir_fd = get_dir_fd_no_symlinks(directory)
 
     try:
         file_fd = os.open(
@@ -658,11 +674,10 @@ def run(  # noqa: C901  # ignore cyclomatic complexity lint on this function
     Copy file to temp file, run editor, and copy temp file back to target file.
     Raises Run0editError if a step fails.
     """
-    original_file = os.path.realpath(original_file)
     try:
         original_fd, original_file_exists = get_fd_for_original(original_file)
     except NoDirectoryError:
-        print_err("invalid argument: directory does not exist")
+        print_err("invalid argument: directory does not exist or could not be resolved")
         raise
     except NotRegularFileError:
         print_err("invalid argument: not a regular file")
