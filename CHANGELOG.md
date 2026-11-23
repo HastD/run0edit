@@ -6,13 +6,23 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 # Changelog
 
-## [Unreleased]
+## [v0.7.2] - 2026-11-23
 
 - Only accept a single path. (The functionality to accept multiple paths and
   edit each file in succession was obscure and had been broken for some time.)
   ([#130](https://github.com/HastD/run0edit/pull/130))
+- Fixed editor path resolution.
+  ([#136](https://github.com/HastD/run0edit/pull/136))
+- Fixed file comparison logic.
+  ([#137](https://github.com/HastD/run0edit/pull/137))
+- Ask for confirmation before editing a path that include symlinks. Don't
+  resolve symlinks in the inner script.
+  ([#138](https://github.com/HastD/run0edit/pull/138))
+- Support `RUN0EDIT_BACKGROUND` and `RUN0EDIT_NO_PROMPT` environment variables
+  as alternatives to the `--background` and `--no-prompt` options.
+  ([#138](https://github.com/HastD/run0edit/pull/138))
 
-## [v0.7.1]
+## [v0.7.1] - 2026-11-06
 
 - Support run0edit-specific editor environment variable `RUN0EDIT_EDITOR`.
   ([#126](https://github.com/HastD/run0edit/pull/126))
@@ -275,7 +285,7 @@ Rewrote script in Python. ([#1](https://github.com/HastD/run0edit/pull/1))
 
 - Initial release.
 
-[Unreleased]: https://github.com/HastD/run0edit/compare/v0.7.1...HEAD
+[v0.7.2]: https://github.com/HastD/run0edit/compare/v0.7.1...v0.7.2
 [v0.7.1]: https://github.com/HastD/run0edit/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/HastD/run0edit/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/HastD/run0edit/compare/v0.6.0...v0.6.1
