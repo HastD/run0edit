@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 
 Name:           run0edit
-Version:        0.7.1
+Version:        0.7.2
 Release:        1
 Summary:        run0edit allows a permitted user to edit a file as root.
 
@@ -46,6 +46,12 @@ copied back to the original location when the editor is closed.
 %{_mandir}/man1/%{name}.1*
 
 %changelog
+* Mon Nov 23 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.7.2
+- Don't accept multiple paths in a single command.
+- Fixed bugs in editor path resolution and file comparison logic.
+- Ask for confirmation before editing a path that include symlinks.
+- Support RUN0EDIT_BACKGROUND and RUN0EDIT_NO_PROMPT environment variables.
+
 * Fri Nov 06 2026 Daniel Hast <hast.daniel@protonmail.com> - v0.7.1
 - Support RUN0EDIT_EDITOR environment variable.
 - Drop privileges and set up PTY for editor child process in pure Python.
