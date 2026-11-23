@@ -54,8 +54,8 @@ This works as follows:
   disable changing the background color. This option is passed on to **run0**.
 
 **--no-prompt**
-: Don't prompt for confirmation before editing a file with the immutable
-  attribute set.
+: Don't prompt for confirmation before editing a file whose path includes
+  symbolic links or that has the immutable attribute set.
 
 # ENVIRONMENT
 
@@ -63,6 +63,12 @@ This works as follows:
 : These environment variables are read for the default text editor (in order)
   if the **--editor** argument is not used and there is no editor configured
   in **editor.conf** (see **FILES** section below).
+
+**RUN0EDIT_BACKGROUND**
+: If set, provides a default value for the `--background` argument.
+
+**RUN0EDIT_NO_PROMPT**
+: Has the same effect as **--no-prompt** if set to a non-empty value.
 
 # FILES
 
